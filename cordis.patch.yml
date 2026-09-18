@@ -1,0 +1,12 @@
+# dsh-worktree-jump bundle layer. Applied automatically to any composition
+# that installs this package as a bundle; a path-based activation overlays the
+# same rows through a profile/home patch layer instead.
+#
+# Row order carries no load semantics: activation is service-availability
+# driven (the row injects webServer and waits for the web composition).
+# The id is this plugin's own; it never targets another package's row.
+# Config defaults live in the plugin's validated Config schema (worktreeRoot,
+# gitTimeoutMs); a deployment overrides them by restating this whole entry.
+- insert:
+    - id: worktree-jump
+      name: './lib/index.js'

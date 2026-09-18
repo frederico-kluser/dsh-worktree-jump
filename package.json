@@ -1,0 +1,65 @@
+{
+  "name": "dsh-worktree-jump",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH web button to create a git worktree and transport the current conversation into it",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.cjs",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0 <5"
+  },
+  "scripts": {
+    "setup": "node scripts/setup-dev-env.mjs",
+    "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+    "build": "pnpm run typecheck && node node_modules/tsdown/dist/run.mjs --config tsdown.config.ts --env.DSH_BUILD_FACE client",
+    "test:compile": "node node_modules/typescript/bin/tsc -p tsconfig.test.json",
+    "test": "pnpm run test:compile && node --test dist/test/*.test.js"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ondokai/dsh-worktree-jump.git"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "cordis",
+    "deepseek-harness",
+    "git",
+    "worktree"
+  ]
+}
