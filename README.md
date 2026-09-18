@@ -1,26 +1,34 @@
 # dsh-worktree-jump
 
-A DeepSeek Harness (DSH) plugin: **one button in the web UI that creates a git worktree and moves the current conversation into it.**
+A DeepSeek Harness (DSH) plugin: **one card in the New-Conversation screen that creates a git worktree from the picked folder and starts the conversation inside it.**
 
-Click the branch icon in a session header, type a name (e.g. `my-feature`), confirm — and the conversation continues inside `<repo>/.worktrees/<my-feature>`, with the model working there instead of the original folder. The button only appears when the session's workspace directory is inside a git repository.
+In a new conversation (after the workspace folder is picked), a composer-stack card sits directly below the folder/mode selector row: **🌿 New git worktree · <repo>**. Click it, type a name (e.g. `my-feature`), confirm — and the conversation starts inside `<repo>/.worktrees/<my-feature>`, with the model working there. The card appears only while the conversation is still blank (no message sent yet) and the picked folder is inside a git repository; once the conversation starts, it never shows again.
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  session header …                    [branch icon] [open-in] ⋯ │
-└────────────────────────────────────────────────────────────────┘
-        │ click
+┌──────────────────────────────────────────────────────────────────┐
+│  hero headline (fish …)                                          │
+│                                                                  │
+│  [📁 folder selector]              [mode selector]               │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ 🌿  New git worktree                        my-repo        │  │  ← the card (this plugin)
+│  └────────────────────────────────────────────────────────────┘  │
+│  ┌─ composer ────────────────────────────────────────────────┐   │
+│  │  Type a message…                                          │   │
+│  └───────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+        │ click the card
         ▼
-┌─ Create a worktree ────────────────────────────────────────────┐
-│  Worktree name  [ my-feature              ]                    │
-│  Letters, digits, dots, underscores, hyphens.                  │
-│  Repository: /home/you/proj  ·  main                           │
-│  Existing worktrees (2) ▸                                      │
-│                        [Cancel]  [Create and move]             │
-└────────────────────────────────────────────────────────────────┘
+┌─ Create a worktree ──────────────────────────────────────────────┐
+│  Worktree name  [ my-feature              ]                      │
+│  Letters, digits, dots, underscores, hyphens.                    │
+│  Repository: /home/you/proj  ·  main                             │
+│  Existing worktrees (2) ▸                                        │
+│                        [Cancel]  [Create and start]              │
+└──────────────────────────────────────────────────────────────────┘
         │  host: git worktree add <repo>/.worktrees/<name> -b <name>
-        │        + fork the live Session with meta.cwd = worktree
+        │        + fork the blank Session with meta.cwd = worktree
         ▼
-  the same conversation, now rooted in the worktree
+  the conversation starts inside the worktree
   (sidebar nests the child under the source; a Workspace is
    created over the worktree directory)
 ```
@@ -29,7 +37,9 @@ Click the branch icon in a session header, type a name (e.g. `my-feature`), conf
 
 A DSH Session header's `cwd` is **frozen creation metadata** — the harness has no in-place directory switch (the system prompt's `{{cwd}}`, the shell tool's default workdir, and the sandbox root all derive from `session.header.cwd`). The documented way to carry a conversation into a new directory is a fork: the harness's own `session.fork` RPC inherits the source `cwd` verbatim, so this plugin runs the *same* host-side fork flow (`sessionQuery` observation → `agents.create` with a balanced completed-turn seed, `parentSession` lineage, the source's mounted agent preset, the current default model) with the one difference the product needs: **`meta.cwd` is the worktree path**.
 
-Concretely, clicking *Create and move* does, in order:
+In the New-Conversation flow the source Session is the workspace's blank placeholder, so the seed is empty and the child starts fresh — the first message you type lands in the worktree. With an existing conversation the same flow carries the transcript through its last completed turn.
+
+Concretely, clicking *Create and start* does, in order:
 
 1. **Validate** the name (1–64 chars, letters/digits first, then letters, digits, `.`, `_`, `-`; no slashes, spaces, or leading `.`/`-`) — a single safe filesystem and git segment, reused as the branch name.
 2. **Plan** the worktree: default root `<repoRoot>/.worktrees/`, overridable via config.
@@ -111,7 +121,7 @@ Tests are **fully isolated by construction**: real git only inside `os.tmpdir()`
 
 ## Verified API surface
 
-Everything the plugin touches was checked against real DSH sources, not prose: `webServer.register` exact routes and duplicate-throw semantics (`@deepseek-ai/dsh-host-webserver`), the connection trust fence (`@deepseek-ai/dsh-client-connection` node half, the same call the shipped open-in-app host half makes), `subprocess` spawn-spec subprocesses, `sessionQuery.observeSession` (exact observations with projections), `agents.create` with `meta.cwd` override + seed/inheritedEventCount (`@deepseek-ai/dsh-agent` `CreateAgentOptions`), `agentPresets.resolve/mount`, `workspaceRegistry.create/attachSession`, the `conversation.session.header.utilities` slot and `useSessions` standard prop (the shipped `ui-open-in-app` contribution is the reference), the client-module `dsh.client`/`exports["./client"]` browser roster, the `__ModuleLoader__.load({id, factory})` CJS-factory bundle contract, and the live user-patch watcher (`watchUserPatches` → `entry.update`, which no-ops unchanged entries — the property that makes hot activation safe).
+Everything the plugin touches was checked against real DSH sources, not prose: `webServer.register` exact routes and duplicate-throw semantics (`@deepseek-ai/dsh-host-webserver`), the connection trust fence (`@deepseek-ai/dsh-client-connection` node half, the same call the shipped open-in-app host half makes), `subprocess` spawn-spec subprocesses, `sessionQuery.observeSession` (exact observations with projections), `agents.create` with `meta.cwd` override + seed/inheritedEventCount (`@deepseek-ai/dsh-agent` `CreateAgentOptions`), `agentPresets.resolve/mount`, `workspaceRegistry.create/attachSession`, the `conversation.input.dock` slot (the shipped `ui-goal` contribution is the reference) and the `SessionSnapshot.blank` gate, the client-module `dsh.client`/`exports["./client"]` browser roster, the `__ModuleLoader__.load({id, factory})` CJS-factory bundle contract, and the live user-patch watcher (`watchUserPatches` → `entry.update`, which no-ops unchanged entries — the property that makes hot activation safe).
 
 ## License
 

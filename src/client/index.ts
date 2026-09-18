@@ -1,7 +1,10 @@
 /**
- * Browser half of dsh-worktree-jump: one Session-header button creating a git
- * worktree and moving the conversation into it. Status arrives per cwd from
- * the host route; the button renders nothing outside a git repository.
+ * Browser half of dsh-worktree-jump: one input-dock card in the
+ * New-Conversation hero — directly below the workspace/mode selector row —
+ * creating a git worktree and starting the conversation inside it. The card
+ * renders only while the current Session is blank and its workspace
+ * directory is a git repository (status arrives per cwd from the host
+ * route); a started conversation never shows it again.
  * @module worktree-jump/client
  */
 
@@ -18,7 +21,7 @@ import { en, NS, pt, type WorktreeJumpKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** Session-header worktree-creation copy. */
+    /** Input-dock worktree-creation copy. */
     'worktree-jump': WorktreeJumpKey
   }
 }
@@ -26,12 +29,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { WorktreeActionInjected, WorktreeActionProps } from './WorktreeButton.tsx'
 export type { WorktreeJumpKey } from './locales.ts'
 
-/** Required services: locale registration and the header-slot contribution. */
+/** Required services: locale registration and the dock-slot contribution. */
 export const inject = ['sessions', 'slots', 'locale']
 
 /**
- * Client plugin body: register the language, the dictionaries, and the
- * header button.
+ * Client plugin body: register the language, the dictionaries, and the dock
+ * card.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -42,10 +45,10 @@ export function apply(ctx: ClientContext): void {
     'worktree-jump: language')
   ctx.effect(() => ctx.locale.register(NS, 'en', en), 'worktree-jump: dictionary (en)')
   ctx.effect(() => ctx.locale.register(NS, 'pt', pt), 'worktree-jump: dictionary (pt)')
-  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-    name: 'conversation.session.header.utilities',
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
     id: 'worktree-jump',
-    order: -8,
+    order: 5,
     locale: NS,
     inject: (): WorktreeActionInjected => ({
       hooks: {

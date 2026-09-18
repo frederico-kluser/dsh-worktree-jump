@@ -1,9 +1,11 @@
 /**
- * The Session-header worktree button and its dialog. Renders nothing until
- * the host reported the session's workspace directory as a git repository —
- * the "only in a git project" gate — and opens the naming dialog on click.
- * Styling is inline and primitive-only, so the bundle carries no stylesheet
- * pipeline.
+ * The input-dock worktree card and its dialog. The card lives in the
+ * New-Conversation hero — directly below the workspace/mode selector row —
+ * as one composer-stack card in the Goal/Todo/Queue family. It renders only
+ * while the current Session is still blank (a conversation has not started)
+ * and the host reported the picked workspace directory as a git repository;
+ * the first message of the conversation then runs inside the new worktree.
+ * Styling is inline over DSH tokens, primitive-only, no stylesheet pipeline.
  * @module worktree-jump/client/WorktreeButton
  */
 
@@ -18,25 +20,25 @@ import type { WorktreeStatusPayload } from '../shared.ts'
 import { WorktreeHttpError } from './controller.ts'
 import { NS, type WorktreeJumpKey } from './locales.ts'
 
-/** Browser operations and state injected into the header contribution. */
+/** Browser operations and state injected into the dock contribution. */
 export interface WorktreeActionInjected {
   hooks: {
-    /** Published status per cwd; the button renders only on `isGitRepo`. */
+    /** Published status per cwd; the card renders only on `isGitRepo`. */
     readonly worktreeStatus: ObservableSnapshot<ReadonlyMap<string, WorktreeStatusPayload>>
   }
   /** Ensure the status read for one session's cwd is running or resolved. */
   readonly loadStatus: (sessionId: string, cwd: string) => void
-  /** Create the worktree and fork the conversation into it. */
+  /** Create the worktree and start the conversation inside it. */
   readonly create: (sessionId: string, name: string) => Promise<{ readonly sessionId: string }>
   /** Transport the UI to one session (uiWorkspace when present, else the list). */
   readonly openSession: (sessionId: string) => void
 }
 
-/** Full props of the Session-header worktree button. */
+/** Full props of the input-dock worktree card. */
 export type WorktreeActionProps =
-  PropsRuntime<'conversation.session.header.utilities'>
-  & PropsLocale<typeof NS>
+  PropsRuntime<'conversation.input.dock'>
   & InjectFace<WorktreeActionInjected>
+  & PropsLocale<typeof NS>
 
 /** Server-code → dictionary-key table for the dialog's error line. */
 const ERROR_KEY: Partial<Record<string, WorktreeJumpKey>> = {
@@ -52,12 +54,50 @@ const ERROR_KEY: Partial<Record<string, WorktreeJumpKey>> = {
   'create-failed': 'error.generic',
 }
 
-/** Small inline-layout style bundle for the dialog body (no stylesheet). */
+/** The composer-stack card family look (Goal/Todo/Queue), over DSH tokens. */
 const styles = {
+  dock: {
+    boxSizing: 'border-box',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    maxWidth: 'calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset))',
+    height: 36,
+    margin: '0 auto',
+    padding: '4px 5px 4px 12px',
+    border: '0.5px solid var(--dsw-alias-border-l1)',
+    borderRadius: 12,
+    background: 'var(--dsw-specific-tip)',
+    cursor: 'pointer',
+    textAlign: 'left',
+  } satisfies React.CSSProperties,
+  glyph: {
+    display: 'inline-flex',
+    flex: 'none',
+    color: 'var(--dsw-alias-label-tertiary)',
+  } satisfies React.CSSProperties,
+  label: {
+    flex: 'none',
+    fontSize: 13,
+    lineHeight: '24px',
+    fontWeight: 500,
+    color: 'var(--dsw-alias-label-primary)',
+  } satisfies React.CSSProperties,
+  repo: {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    fontSize: 13,
+    lineHeight: '20px',
+    color: 'var(--dsw-alias-label-primary-dimmed)',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    textAlign: 'right',
+  } satisfies React.CSSProperties,
   body: { display: 'grid', gap: 10, minWidth: 380 } satisfies React.CSSProperties,
-  label: { fontSize: 12, fontWeight: 600 } satisfies React.CSSProperties,
   hint: { margin: 0, fontSize: 12, opacity: 0.75 } satisfies React.CSSProperties,
-  repo: { margin: 0, fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' } satisfies React.CSSProperties,
+  repoLine: { margin: 0, fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' } satisfies React.CSSProperties,
   branch: {
     border: '1px solid currentColor', borderRadius: 999, padding: '0 8px',
     fontSize: 11, opacity: 0.8,
@@ -67,14 +107,15 @@ const styles = {
 } as const
 
 /**
- * Session-header icon button. Hidden until the status read names the session's
- * workspace directory a git repository, so a plain directory never grows the
- * control.
+ * The input-dock card. Hidden until the current Session is a blank one (the
+ * New-Conversation state) whose picked workspace directory the host reported
+ * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the button (and dialog when open), or null when not applicable.
+ * @returns the dock card (and dialog when open), or null when not applicable.
  */
 export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null {
-  const { sessionId, useSessions, useWorktreeStatus, t, loadStatus, create, openSession } = props
+  const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, openSession } = props
+  const blank = useSession(state => state?.blank ?? false)
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const statusMap = useWorktreeStatus(map => map)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -85,18 +126,22 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
   }, [sessionId, cwd, loadStatus])
 
   const status = cwd === undefined ? undefined : statusMap.get(cwd)
-  if (cwd === undefined || cwd === '' || status === undefined || !status.isGitRepo) return null
+  if (!blank || cwd === undefined || cwd === '' || status === undefined || !status.isGitRepo) return null
+
+  const repoName = cwd.split('/').filter(part => part !== '').at(-1) ?? cwd
 
   return (
     <>
       <Tooltip label={t('button.tooltip')} side="bottom">
         <button
           type="button"
+          style={styles.dock}
           aria-label={t('button.aria')}
-          title={t('button.tooltip')}
           onClick={() => { setDialogOpen(true) }}
         >
-          <IconBranchOutline16 size={15} />
+          <span style={styles.glyph}><IconBranchOutline16 size={15} /></span>
+          <span style={styles.label}>{t('button.label')}</span>
+          <span style={styles.repo}>{repoName}</span>
         </button>
       </Tooltip>
       <WorktreeDialog
@@ -116,7 +161,9 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
 /**
  * The naming dialog: one input, repository facts, the existing-worktree hint,
  * and the create action. On success the UI opens the forked child Session —
- * same history, new working directory.
+ * the conversation starts inside the worktree.
+ * @param props - open state, session facts, host status, and injected verbs.
+ * @returns the modal, or null when closed.
  */
 export function WorktreeDialog(
   props: {
@@ -195,7 +242,7 @@ export function WorktreeDialog(
           onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
         />
         <p style={styles.hint}>{t('dialog.name.hint')}</p>
-        <p style={styles.repo}>
+        <p style={styles.repoLine}>
           {t('dialog.cwd')}: <code>{cwd}</code>
           {status.branch !== undefined ? <span style={styles.branch}>{status.branch}</span> : undefined}
         </p>

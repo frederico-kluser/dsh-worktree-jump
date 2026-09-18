@@ -1,44 +1,48 @@
 /**
- * The Session-header worktree button and its dialog. Renders nothing until
- * the host reported the session's workspace directory as a git repository —
- * the "only in a git project" gate — and opens the naming dialog on click.
- * Styling is inline and primitive-only, so the bundle carries no stylesheet
- * pipeline.
+ * The input-dock worktree card and its dialog. The card lives in the
+ * New-Conversation hero — directly below the workspace/mode selector row —
+ * as one composer-stack card in the Goal/Todo/Queue family. It renders only
+ * while the current Session is still blank (a conversation has not started)
+ * and the host reported the picked workspace directory as a git repository;
+ * the first message of the conversation then runs inside the new worktree.
+ * Styling is inline over DSH tokens, primitive-only, no stylesheet pipeline.
  * @module worktree-jump/client/WorktreeButton
  */
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorktreeStatusPayload } from '../shared.ts';
 import { NS } from './locales.ts';
-/** Browser operations and state injected into the header contribution. */
+/** Browser operations and state injected into the dock contribution. */
 export interface WorktreeActionInjected {
     hooks: {
-        /** Published status per cwd; the button renders only on `isGitRepo`. */
+        /** Published status per cwd; the card renders only on `isGitRepo`. */
         readonly worktreeStatus: ObservableSnapshot<ReadonlyMap<string, WorktreeStatusPayload>>;
     };
     /** Ensure the status read for one session's cwd is running or resolved. */
     readonly loadStatus: (sessionId: string, cwd: string) => void;
-    /** Create the worktree and fork the conversation into it. */
+    /** Create the worktree and start the conversation inside it. */
     readonly create: (sessionId: string, name: string) => Promise<{
         readonly sessionId: string;
     }>;
     /** Transport the UI to one session (uiWorkspace when present, else the list). */
     readonly openSession: (sessionId: string) => void;
 }
-/** Full props of the Session-header worktree button. */
-export type WorktreeActionProps = PropsRuntime<'conversation.session.header.utilities'> & PropsLocale<typeof NS> & InjectFace<WorktreeActionInjected>;
+/** Full props of the input-dock worktree card. */
+export type WorktreeActionProps = PropsRuntime<'conversation.input.dock'> & InjectFace<WorktreeActionInjected> & PropsLocale<typeof NS>;
 /**
- * Session-header icon button. Hidden until the status read names the session's
- * workspace directory a git repository, so a plain directory never grows the
- * control.
+ * The input-dock card. Hidden until the current Session is a blank one (the
+ * New-Conversation state) whose picked workspace directory the host reported
+ * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the button (and dialog when open), or null when not applicable.
+ * @returns the dock card (and dialog when open), or null when not applicable.
  */
 export declare function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null;
 /**
  * The naming dialog: one input, repository facts, the existing-worktree hint,
  * and the create action. On success the UI opens the forked child Session —
- * same history, new working directory.
+ * the conversation starts inside the worktree.
+ * @param props - open state, session facts, host status, and injected verbs.
+ * @returns the modal, or null when closed.
  */
 export declare function WorktreeDialog(props: {
     readonly open: boolean;
