@@ -45,15 +45,17 @@ The **original session stays behind** in the original folder; the fork is the co
 
 The plugin is standalone ESM with **zero runtime dependencies** (the host half imports only node builtins; the browser half requires only platform module-table words). The built artifacts are committed under `lib/`, so installing never runs a build script.
 
+> **⚠️ Pick ONE activation path.** The bundle install and the manual patch entry insert the **same loader entry id** (`worktree-jump`); having both active throws `duplicate loader entry id: worktree-jump` at boot. To switch paths, remove the other one first (and delete the installed package with `dsh plugin --profile web remove dsh-worktree-jump` if present). The same applies to pasting the insert row into the profile's `cordis.yml` — that file is the include's own entry list and must stay `[]`; the supported user file is `cordis.patch.yml`.
+
 **From GitHub** (git-hosted bundle; no prepare script, so no `allowBuilds` dance):
 
 ```sh
 dsh plugin --profile web add github:frederico-kluser/dsh-worktree-jump
 ```
 
-`dsh plugin add` appends the package to the profile's bundle list (`dsh.profile.bundles`) because this package declares `dsh.bundle.patch`. Restart `dsh web` (or reload it if your build supports live profile patches) and the button appears in every session whose workspace is a git repository.
+`dsh plugin add` appends the package to the profile's bundle list (`dsh.profile.bundles`) because this package declares `dsh.bundle.patch`; the bundle layer inserts the plugin row itself. **Do not also add a manual `- insert:` row for it.** Restart `dsh web` (or reload it if your build supports live profile patches) and the button appears in every session whose workspace is a git repository.
 
-**From a local checkout** (dev loop): point a user patch layer at the built entry — absolute paths are valid loader entries:
+**From a local checkout** (dev loop): point a user patch layer at the built entry — absolute paths are valid loader entries — and make sure the package is **not** also installed in the profile:
 
 ```yaml
 # $DSH_HOME/profiles/web/cordis.patch.yml
@@ -63,6 +65,10 @@ dsh plugin --profile web add github:frederico-kluser/dsh-worktree-jump
 ```
 
 Remove the entry to deactivate. Precedence and the four patch layers are documented in the DSH plugin docs.
+
+### Troubleshooting
+
+- `duplicate loader entry id: worktree-jump` at boot — the plugin is activated twice (bundle install + manual insert, or a pasted row in `cordis.yml`). Keep exactly one: either uninstall the package (`dsh plugin --profile web remove dsh-worktree-jump`) or empty your `cordis.patch.yml` back to `[]`. The profile's `cordis.yml` must stay an empty list.
 
 ## Configuration
 
