@@ -1,16 +1,17 @@
 /**
- * The input-dock worktree card and its dialog. The card lives in the
- * New-Conversation hero — directly below the workspace/mode selector row —
- * as one composer-stack card in the Goal/Todo/Queue family. It renders only
- * while the current Session is still blank (a conversation has not started)
- * and the host reported the picked workspace directory as a git repository;
- * the first message of the conversation then runs inside the new worktree.
- * Styling is inline over DSH tokens, primitive-only, no stylesheet pipeline.
+ * The New-Conversation worktree trigger and its dialog. The trigger is a
+ * compact outline button floated at the composer card's top-right corner —
+ * beside the workspace/mode selector row — through the
+ * `conversation.input.overlay` slot (the same anchored strip the shipped
+ * command popup uses). It renders only while the current Session is blank
+ * (the New-Conversation state) and the picked workspace directory is a git
+ * repository; a started conversation never shows it again. Styling rides
+ * DSH primitives and tokens only — no stylesheet pipeline.
  * @module worktree-jump/client/WorktreeButton
  */
 
 import { useEffect, useState } from 'react'
-import { Button, IconBranchOutline16, Input, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconBranchOutline16, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the conversation SlotMap and ui-session standard-prop merges.
@@ -20,10 +21,10 @@ import type { WorktreeStatusPayload } from '../shared.ts'
 import { WorktreeHttpError } from './controller.ts'
 import { NS, type WorktreeJumpKey } from './locales.ts'
 
-/** Browser operations and state injected into the dock contribution. */
+/** Browser operations and state injected into the overlay contribution. */
 export interface WorktreeActionInjected {
   hooks: {
-    /** Published status per cwd; the card renders only on `isGitRepo`. */
+    /** Published status per cwd; the trigger renders only on `isGitRepo`. */
     readonly worktreeStatus: ObservableSnapshot<ReadonlyMap<string, WorktreeStatusPayload>>
   }
   /** Ensure the status read for one session's cwd is running or resolved. */
@@ -34,9 +35,9 @@ export interface WorktreeActionInjected {
   readonly openSession: (sessionId: string) => void
 }
 
-/** Full props of the input-dock worktree card. */
+/** Full props of the overlay trigger. */
 export type WorktreeActionProps =
-  PropsRuntime<'conversation.input.dock'>
+  PropsRuntime<'conversation.input.overlay'>
   & InjectFace<WorktreeActionInjected>
   & PropsLocale<typeof NS>
 
@@ -54,68 +55,88 @@ const ERROR_KEY: Partial<Record<string, WorktreeJumpKey>> = {
   'create-failed': 'error.generic',
 }
 
-/** The composer-stack card family look (Goal/Todo/Queue), over DSH tokens. */
+/** Dialog-local styles, token-native and deliberately minimal (the Modal
+ * primitive owns the chrome: header, description, body column, footer). */
 const styles = {
-  dock: {
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    width: '100%',
-    maxWidth: 'calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset))',
-    height: 36,
-    margin: '0 auto',
-    padding: '4px 5px 4px 12px',
-    border: '0.5px solid var(--dsw-alias-border-l1)',
-    borderRadius: 12,
-    background: 'var(--dsw-specific-tip)',
-    cursor: 'pointer',
-    textAlign: 'left',
-  } satisfies React.CSSProperties,
-  glyph: {
-    display: 'inline-flex',
-    flex: 'none',
-    color: 'var(--dsw-alias-label-tertiary)',
-  } satisfies React.CSSProperties,
-  label: {
-    flex: 'none',
+  fieldLabel: {
     fontSize: 13,
-    lineHeight: '24px',
+    lineHeight: '20px',
     fontWeight: 500,
     color: 'var(--dsw-alias-label-primary)',
   } satisfies React.CSSProperties,
-  repo: {
-    flex: 1,
+  fieldInput: {
+    boxSizing: 'border-box',
+    width: '100%',
+    height: 32,
+    padding: '0 8px',
+    border: '0.5px solid var(--dsw-alias-border-l4)',
+    borderRadius: 8,
+    background: 'var(--dsw-alias-bg-layer-1)',
+    fontSize: 14,
+    lineHeight: '22px',
+    color: 'var(--dsw-alias-label-primary)',
+    outline: 'none',
+  } satisfies React.CSSProperties,
+  hint: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
+  } satisfies React.CSSProperties,
+  repoLine: {
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
     minWidth: 0,
+  } satisfies React.CSSProperties,
+  repoPath: {
     overflow: 'hidden',
-    fontSize: 13,
-    lineHeight: '20px',
-    color: 'var(--dsw-alias-label-primary-dimmed)',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    textAlign: 'right',
   } satisfies React.CSSProperties,
-  body: { display: 'grid', gap: 10, minWidth: 380 } satisfies React.CSSProperties,
-  hint: { margin: 0, fontSize: 12, opacity: 0.75 } satisfies React.CSSProperties,
-  repoLine: { margin: 0, fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' } satisfies React.CSSProperties,
   branch: {
-    border: '1px solid currentColor', borderRadius: 999, padding: '0 8px',
-    fontSize: 11, opacity: 0.8,
+    flex: 'none',
+    border: '0.5px solid var(--dsw-alias-border-l2)',
+    borderRadius: 999,
+    padding: '0 8px',
+    fontSize: 11,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
   } satisfies React.CSSProperties,
-  existing: { fontSize: 12 } satisfies React.CSSProperties,
-  error: { margin: 0, fontSize: 12, color: 'var(--dsw-tone-danger, #c0392b)' } satisfies React.CSSProperties,
+  existing: {
+    fontSize: 12,
+    color: 'var(--dsw-alias-label-secondary)',
+  } satisfies React.CSSProperties,
+  existingList: {
+    margin: '4px 0 0',
+    paddingLeft: 16,
+    maxHeight: 120,
+    overflowY: 'auto',
+    display: 'grid',
+    gap: 2,
+  } satisfies React.CSSProperties,
+  error: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-tone-danger, #c0392b)',
+  } satisfies React.CSSProperties,
 } as const
 
 /**
- * The input-dock card. Hidden until the current Session is a blank one (the
+ * The overlay trigger. Hidden until the current Session is a blank one (the
  * New-Conversation state) whose picked workspace directory the host reported
  * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the dock card (and dialog when open), or null when not applicable.
+ * @returns the floating trigger (and dialog when open), or null when not applicable.
  */
 export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null {
   const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, openSession } = props
-  const blank = useSession(state => state?.blank ?? false)
+  const blank = useSession(state => state.blank)
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const statusMap = useWorktreeStatus(map => map)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -132,18 +153,25 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
 
   return (
     <>
-      <Tooltip label={t('button.tooltip')} side="bottom">
-        <button
-          type="button"
-          style={styles.dock}
-          aria-label={t('button.aria')}
-          onClick={() => { setDialogOpen(true) }}
-        >
-          <span style={styles.glyph}><IconBranchOutline16 size={15} /></span>
-          <span style={styles.label}>{t('button.label')}</span>
-          <span style={styles.repo}>{repoName}</span>
-        </button>
-      </Tooltip>
+      {/* The composer card is a click target while it fronts the workspace
+          picker, so this floating trigger swallows its own pointer events. */}
+      <div
+        onPointerDown={(event) => { event.stopPropagation() }}
+        onClick={(event) => { event.stopPropagation() }}
+        style={{ position: 'absolute', top: 10, right: 16, zIndex: 100 }}
+      >
+        <Tooltip label={t('button.tooltip', { repo: repoName })} side="bottom">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<IconBranchOutline16 size={14} />}
+            aria-label={t('button.aria')}
+            onClick={() => { setDialogOpen(true) }}
+          >
+            {`${t('button.label')} · ${repoName}`}
+          </Button>
+        </Tooltip>
+      </div>
       <WorktreeDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false) }}
@@ -161,7 +189,8 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
 /**
  * The naming dialog: one input, repository facts, the existing-worktree hint,
  * and the create action. On success the UI opens the forked child Session —
- * the conversation starts inside the worktree.
+ * the conversation starts inside the worktree. The Modal primitive owns the
+ * chrome; the body flows in its native content column.
  * @param props - open state, session facts, host status, and injected verbs.
  * @returns the modal, or null when closed.
  */
@@ -230,39 +259,41 @@ export function WorktreeDialog(
         </>
       )}
     >
-      <div style={styles.body}>
-        <label htmlFor="dsh-worktree-jump-name">{t('dialog.name.label')}</label>
-        <Input
-          id="dsh-worktree-jump-name"
-          autoFocus
-          placeholder={t('dialog.name.placeholder')}
-          value={name}
-          disabled={phase === 'creating'}
-          onChange={(event) => { setName(event.target.value) }}
-          onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
-        />
-        <p style={styles.hint}>{t('dialog.name.hint')}</p>
-        <p style={styles.repoLine}>
-          {t('dialog.cwd')}: <code>{cwd}</code>
-          {status.branch !== undefined ? <span style={styles.branch}>{status.branch}</span> : undefined}
-        </p>
-        {existing.length > 0
-          ? (
-              <details style={styles.existing}>
-                <summary>{`${t('dialog.existing')} (${String(existing.length)})`}</summary>
-                <ul>
-                  {existing.map(worktree => (
-                    <li key={worktree.path}>
-                      <span style={styles.branch}>{worktree.branch}</span>
-                      <code>{worktree.path}</code>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )
-          : undefined}
-        {error !== undefined ? <p style={styles.error} role="alert">{error}</p> : undefined}
-      </div>
+      <label htmlFor="dsh-worktree-jump-name" style={styles.fieldLabel}>
+        {t('dialog.name.label')}
+      </label>
+      <input
+        id="dsh-worktree-jump-name"
+        autoFocus
+        placeholder={t('dialog.name.placeholder')}
+        value={name}
+        disabled={phase === 'creating'}
+        style={styles.fieldInput}
+        onChange={(event) => { setName(event.target.value) }}
+        onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
+      />
+      <p style={styles.hint}>{t('dialog.name.hint')}</p>
+      <p style={styles.repoLine}>
+        <span style={{ flex: 'none' }}>{t('dialog.cwd')}:</span>
+        <span style={styles.repoPath}><code>{cwd}</code></span>
+        {status.branch !== undefined ? <span style={styles.branch}>{status.branch}</span> : undefined}
+      </p>
+      {existing.length > 0
+        ? (
+            <details style={styles.existing}>
+              <summary>{`${t('dialog.existing')} (${String(existing.length)})`}</summary>
+              <ul style={styles.existingList}>
+                {existing.map(worktree => (
+                  <li key={worktree.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={styles.branch}>{worktree.branch}</span>{' '}
+                    <code>{worktree.path}</code>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )
+        : undefined}
+      {error !== undefined ? <p style={styles.error} role="alert">{error}</p> : undefined}
     </Modal>
   )
 }

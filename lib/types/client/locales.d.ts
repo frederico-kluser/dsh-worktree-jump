@@ -7,9 +7,9 @@
 export declare const NS = "worktree-jump";
 /** English dictionary (fallback of every chain). */
 export declare const en: {
-    readonly 'button.label': "New git worktree";
-    readonly 'button.tooltip': "Create a git worktree from this folder and start the conversation inside it";
-    readonly 'button.aria': "Create a git worktree and start this conversation inside it";
+    readonly 'button.label': "New worktree";
+    readonly 'button.tooltip': "Create a new git worktree from {repo} and start the conversation inside it";
+    readonly 'button.aria': "Create a new git worktree and start this conversation inside it";
     readonly 'dialog.title': "Create a worktree";
     readonly 'dialog.description': "Creates a git worktree and a branch named after it, then starts this conversation inside it.";
     readonly 'dialog.name.label': "Worktree name";
@@ -29,9 +29,9 @@ export declare const en: {
 };
 /** Portuguese dictionary, key-identical to the English source. */
 export declare const pt: {
-    readonly 'button.label': "Nova git worktree";
-    readonly 'button.tooltip': "Cria uma git worktree a partir desta pasta e começa a conversa dentro dela";
-    readonly 'button.aria': "Criar uma git worktree e começar esta conversa dentro dela";
+    readonly 'button.label': "Nova worktree";
+    readonly 'button.tooltip': "Criar nova git worktree a partir de {repo} e começar a conversa dentro dela";
+    readonly 'button.aria': "Criar uma nova git worktree e começar esta conversa dentro dela";
     readonly 'dialog.title': "Criar uma worktree";
     readonly 'dialog.description': "Cria uma git worktree e um branch com o nome dela, e começa esta conversa dentro dela.";
     readonly 'dialog.name.label': "Nome da worktree";

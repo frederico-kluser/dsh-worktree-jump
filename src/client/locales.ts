@@ -9,9 +9,9 @@ export const NS = 'worktree-jump'
 
 /** English dictionary (fallback of every chain). */
 export const en = {
-  'button.label': 'New git worktree',
-  'button.tooltip': 'Create a git worktree from this folder and start the conversation inside it',
-  'button.aria': 'Create a git worktree and start this conversation inside it',
+  'button.label': 'New worktree',
+  'button.tooltip': 'Create a new git worktree from {repo} and start the conversation inside it',
+  'button.aria': 'Create a new git worktree and start this conversation inside it',
   'dialog.title': 'Create a worktree',
   'dialog.description': 'Creates a git worktree and a branch named after it, then starts this conversation inside it.',
   'dialog.name.label': 'Worktree name',
@@ -32,9 +32,9 @@ export const en = {
 
 /** Portuguese dictionary, key-identical to the English source. */
 export const pt = {
-  'button.label': 'Nova git worktree',
-  'button.tooltip': 'Cria uma git worktree a partir desta pasta e começa a conversa dentro dela',
-  'button.aria': 'Criar uma git worktree e começar esta conversa dentro dela',
+  'button.label': 'Nova worktree',
+  'button.tooltip': 'Criar nova git worktree a partir de {repo} e começar a conversa dentro dela',
+  'button.aria': 'Criar uma nova git worktree e começar esta conversa dentro dela',
   'dialog.title': 'Criar uma worktree',
   'dialog.description': 'Cria uma git worktree e um branch com o nome dela, e começa esta conversa dentro dela.',
   'dialog.name.label': 'Nome da worktree',

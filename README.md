@@ -1,22 +1,20 @@
 # dsh-worktree-jump
 
-A DeepSeek Harness (DSH) plugin: **one card in the New-Conversation screen that creates a git worktree from the picked folder and starts the conversation inside it.**
+A DeepSeek Harness (DSH) plugin: **one trigger in the New-Conversation screen that creates a git worktree from the picked folder and starts the conversation inside it.**
 
-In a new conversation (after the workspace folder is picked), a composer-stack card sits directly below the folder/mode selector row: **🌿 New git worktree · <repo>**. Click it, type a name (e.g. `my-feature`), confirm — and the conversation starts inside `<repo>/.worktrees/<my-feature>`, with the model working there. The card appears only while the conversation is still blank (no message sent yet) and the picked folder is inside a git repository; once the conversation starts, it never shows again.
+In a new conversation (after the workspace folder is picked), a compact trigger floats at the composer card's top-right corner — right beside the folder/mode selector row: **🌿 New worktree · <repo>**. Click it, type a name (e.g. `my-feature`), confirm — and the conversation starts inside `<repo>/.worktrees/<my-feature>`, with the model working there. The trigger appears only while the conversation is still blank (no message sent yet) and the picked folder is inside a git repository; once the conversation starts, it never shows again.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  hero headline (fish …)                                          │
 │                                                                  │
-│  [📁 folder selector]              [mode selector]               │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ 🌿  New git worktree                        my-repo        │  │  ← the card (this plugin)
-│  └────────────────────────────────────────────────────────────┘  │
-│  ┌─ composer ────────────────────────────────────────────────┐   │
-│  │  Type a message…                                          │   │
-│  └───────────────────────────────────────────────────────────┘   │
+│ ┌─ composer card ──────────────────────────────────────────────┐ │
+│ │ [📁 folder selector]  [mode selector]  [🌿 New worktree ·    │ │
+│ │                                        my-repo]              │ │ ← the trigger (this plugin)
+│ │  Type a message…                                             │ │
+│ └──────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
-        │ click the card
+        │ click the trigger
         ▼
 ┌─ Create a worktree ──────────────────────────────────────────────┐
 │  Worktree name  [ my-feature              ]                      │
@@ -121,7 +119,7 @@ Tests are **fully isolated by construction**: real git only inside `os.tmpdir()`
 
 ## Verified API surface
 
-Everything the plugin touches was checked against real DSH sources, not prose: `webServer.register` exact routes and duplicate-throw semantics (`@deepseek-ai/dsh-host-webserver`), the connection trust fence (`@deepseek-ai/dsh-client-connection` node half, the same call the shipped open-in-app host half makes), `subprocess` spawn-spec subprocesses, `sessionQuery.observeSession` (exact observations with projections), `agents.create` with `meta.cwd` override + seed/inheritedEventCount (`@deepseek-ai/dsh-agent` `CreateAgentOptions`), `agentPresets.resolve/mount`, `workspaceRegistry.create/attachSession`, the `conversation.input.dock` slot (the shipped `ui-goal` contribution is the reference) and the `SessionSnapshot.blank` gate, the client-module `dsh.client`/`exports["./client"]` browser roster, the `__ModuleLoader__.load({id, factory})` CJS-factory bundle contract, and the live user-patch watcher (`watchUserPatches` → `entry.update`, which no-ops unchanged entries — the property that makes hot activation safe).
+Everything the plugin touches was checked against real DSH sources, not prose: `webServer.register` exact routes and duplicate-throw semantics (`@deepseek-ai/dsh-host-webserver`), the connection trust fence (`@deepseek-ai/dsh-client-connection` node half, the same call the shipped open-in-app host half makes), `subprocess` spawn-spec subprocesses, `sessionQuery.observeSession` (exact observations with projections), `agents.create` with `meta.cwd` override + seed/inheritedEventCount (`@deepseek-ai/dsh-agent` `CreateAgentOptions`), `agentPresets.resolve/mount`, `workspaceRegistry.create/attachSession`, the `conversation.input.overlay` slot (the shipped `ui-commands` popup is the reference) and the `SessionSnapshot.blank` gate, the client-module `dsh.client`/`exports["./client"]` browser roster, the `__ModuleLoader__.load({id, factory})` CJS-factory bundle contract, and the live user-patch watcher (`watchUserPatches` → `entry.update`, which no-ops unchanged entries — the property that makes hot activation safe).
 
 ## License
 
