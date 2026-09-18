@@ -63,8 +63,12 @@ export default [
     dts: false,
     sourcemap: true,
     clean: false,
-    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PLUGIN_ID)}, factory: (require) => {`,
-    footer: 'return module.exports; } });',
+    outputOptions: {
+      entryFileNames: 'client.cjs',
+      banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PLUGIN_ID)}, factory: (require) => {`,
+      footer: 'return module.exports; } });',
+      intro: 'var module = { exports: {} }; var exports = module.exports;',
+    },
     deps: {
       neverBundle: [...MODULE_TABLE_EXTERNALS],
       alwaysBundle: (specifier: string) => !MODULE_TABLE_EXTERNALS.includes(specifier as never),
