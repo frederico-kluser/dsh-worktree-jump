@@ -25,6 +25,10 @@ export interface WorktreeActionInjected {
     readonly create: (sessionId: string, name: string) => Promise<{
         readonly sessionId: string;
     }>;
+    /** Start the conversation inside an existing worktree directory. */
+    readonly start: (sessionId: string, path: string) => Promise<{
+        readonly sessionId: string;
+    }>;
     /** Transport the UI to one session (uiWorkspace when present, else the list). */
     readonly openSession: (sessionId: string) => void;
 }
@@ -53,6 +57,9 @@ export declare function WorktreeDialog(props: {
     readonly cwd: string;
     readonly status: WorktreeStatusPayload;
     readonly create: (sessionId: string, name: string) => Promise<{
+        readonly sessionId: string;
+    }>;
+    readonly start: (sessionId: string, path: string) => Promise<{
         readonly sessionId: string;
     }>;
     readonly openSession: (sessionId: string) => void;

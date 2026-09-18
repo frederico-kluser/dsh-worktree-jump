@@ -29,7 +29,7 @@ export interface ForkSource {
     };
 }
 /** Rejection reasons the fork raises before any host mutation. */
-export type ForkRejectionCode = 'session-not-found' | 'subagent-session' | 'no-workspace' | 'not-git-repo' | 'fork-unavailable';
+export type ForkRejectionCode = 'session-not-found' | 'subagent-session' | 'no-workspace' | 'not-git-repo' | 'worktree-exists' | 'branch-exists' | 'fork-unavailable';
 /** Typed rejection; the routes translate it to a wire error. */
 export declare class ForkRejection extends Error {
     readonly code: ForkRejectionCode;

@@ -82,6 +82,33 @@ export declare function createWorktreeAndFork(host: WorktreeHost, sessionId: str
     worktreeRoot?: string;
     gitTimeoutMs: number;
 }): Promise<CreateOutcome>;
+/** Result of one successful start-from-existing. */
+export interface StartOutcome {
+    /** Plan-shaped view over the chosen worktree (no creation happened). */
+    readonly plan: WorktreePlan;
+    readonly childId: SessionId;
+    /** Whether the child Session was attached to a Workspace over the worktree. */
+    readonly workspaceAttached: boolean;
+}
+/**
+ * Start the conversation inside an existing worktree of the source's
+ * repository: the child Session is forked from the source (a blank source
+ * starts fresh) with its frozen creation `cwd` pointed at the chosen
+ * worktree directory. The directory must be an existing git work tree; a
+ * workspace is found-or-created over it for sidebar grouping, and an
+ * attachment failure never fails the start.
+ * @param host - the host capability set.
+ * @param sessionId - session to transport.
+ * @param worktreePath - absolute existing worktree directory.
+ * @param config - deployment configuration.
+ * @returns the chosen worktree view, the child Session id, and grouping outcome.
+ * @throws {ForkRejection} `not-git-repo` when the directory is not a work tree.
+ * @throws {ForkRejection} `no-workspace` when the session records no cwd.
+ */
+export declare function startInExistingWorktree(host: WorktreeHost, sessionId: string, worktreePath: string, config: {
+    worktreeRoot?: string;
+    gitTimeoutMs: number;
+}): Promise<StartOutcome>;
 /**
  * Resolve a session's workspace directory, rejecting unknown sessions and
  * sessions that record none.

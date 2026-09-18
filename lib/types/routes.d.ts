@@ -16,6 +16,11 @@ export declare function parseCreateBody(text: string): {
     sessionId: string;
     name: string;
 } | null;
+/** Parse one start body: JSON object with non-empty string sessionId and path. */
+export declare function parseStartBody(text: string): {
+    sessionId: string;
+    path: string;
+} | null;
 /** Map one operation failure to its wire status and structured body. */
 export declare function wireErrorOf(error: unknown): {
     status: number;

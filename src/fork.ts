@@ -39,6 +39,8 @@ export type ForkRejectionCode =
   | 'subagent-session'
   | 'no-workspace'
   | 'not-git-repo'
+  | 'worktree-exists'
+  | 'branch-exists'
   | 'fork-unavailable'
 
 /** Typed rejection; the routes translate it to a wire error. */

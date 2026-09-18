@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerWorktreeRoutes } from '../src/routes.ts'
-import { WORKTREE_CREATE_ROUTE, WORKTREE_STATUS_ROUTE } from '../src/shared.ts'
+import { WORKTREE_CREATE_ROUTE, WORKTREE_START_ROUTE, WORKTREE_STATUS_ROUTE } from '../src/shared.ts'
 import {
   FakeAgents, FakeConnection, FakeSubprocess, FakeWebServer, fakeHost, fakeObservation,
   fakeRequest, fakeResponse, readExclude, tempDir,
@@ -37,6 +37,7 @@ async function setup() {
     dir, repo, sessionId, agents, connection, webServer, disposer,
     status: expectHandler(webServer, WORKTREE_STATUS_ROUTE),
     create: expectHandler(webServer, WORKTREE_CREATE_ROUTE),
+    start: expectHandler(webServer, WORKTREE_START_ROUTE),
     [Symbol.dispose]: () => { dir[Symbol.dispose]() },
   }
 }
@@ -50,17 +51,18 @@ function expectHandler(
   return handler
 }
 
-import { makeGitRepo as makeRepo, FakeSessionQuery } from './helpers.ts'
+import { makeGitRepo as makeRepo, git, FakeSessionQuery } from './helpers.ts'
 
 function jsonOf(record: { statusCode: number | undefined; body: string }): { status: number; payload: Record<string, unknown> } {
   return { status: record.statusCode ?? 0, payload: JSON.parse(record.body) as Record<string, unknown> }
 }
 
-test('routes register exactly two exact routes', async () => {
+test('routes register exactly three exact routes', async () => {
   using routes = await setup()
-  assert.equal(routes['webServer'].routes.size, 2)
+  assert.equal(routes['webServer'].routes.size, 3)
   assert.ok(routes['webServer'].handler(WORKTREE_STATUS_ROUTE))
   assert.ok(routes['webServer'].handler(WORKTREE_CREATE_ROUTE))
+  assert.ok(routes['webServer'].handler(WORKTREE_START_ROUTE))
 })
 
 test('the trust fence answers before any logic', async () => {
@@ -219,6 +221,89 @@ test('create answers 409 when the session directory is not a repository', async 
 function excludeLabel(content: string | undefined): string {
   return content ?? ''
 }
+
+test('create refuses a duplicate worktree with a pickable error', async () => {
+  using routes = await setup()
+  for (let round = 0; round < 2; round += 1) {
+    const res = fakeResponse()
+    await routes.create(fakeRequest({
+      method: 'POST',
+      url: WORKTREE_CREATE_ROUTE,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: routes.sessionId, name: 'same-name' }),
+    }), res)
+    const { status, payload } = jsonOf(res.record)
+    if (round === 0) {
+      assert.equal(status, 200)
+      assert.equal(payload.ok, true)
+    } else {
+      assert.equal(status, 409)
+      assert.equal(payload.code, 'worktree-exists')
+    }
+  }
+})
+
+test('create refuses a name that collides with an existing branch', async () => {
+  using routes = await setup()
+  git(routes.repo, ['branch', 'taken'])
+  const res = fakeResponse()
+  await routes.create(fakeRequest({
+    method: 'POST',
+    url: WORKTREE_CREATE_ROUTE,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: routes.sessionId, name: 'taken' }),
+  }), res)
+  const { status, payload } = jsonOf(res.record)
+  assert.equal(status, 409)
+  assert.equal(payload.code, 'branch-exists')
+})
+
+test('start moves the conversation into an existing worktree', async () => {
+  using routes = await setup()
+  const worktreePath = join(routes.repo, '.worktrees', 'existing')
+  git(routes.repo, ['worktree', 'add', worktreePath, '-b', 'existing'])
+  const res = fakeResponse()
+  await expectHandler(routes['webServer'], WORKTREE_START_ROUTE)(fakeRequest({
+    method: 'POST',
+    url: WORKTREE_START_ROUTE,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: routes.sessionId, path: worktreePath }),
+  }), res)
+  const { status, payload } = jsonOf(res.record)
+  assert.equal(status, 200)
+  assert.equal(payload.ok, true)
+  assert.equal(payload.worktreePath, worktreePath)
+  assert.equal(payload.branch, 'existing')
+  const created = routes['agents'].created[0]
+  assert.equal(created?.meta?.cwd, worktreePath)
+})
+
+test('start rejects relative paths with 400', async () => {
+  using routes = await setup()
+  const res = fakeResponse()
+  await routes.start(fakeRequest({
+    method: 'POST',
+    url: WORKTREE_START_ROUTE,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: routes.sessionId, path: 'relative/path' }),
+  }), res)
+  assert.equal(res.record.statusCode, 400)
+})
+
+test('start rejects a non-repository path with 409', async () => {
+  using routes = await setup()
+  using plain = await tempDir('not-a-repo-')
+  const res = fakeResponse()
+  await routes.start(fakeRequest({
+    method: 'POST',
+    url: WORKTREE_START_ROUTE,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: routes.sessionId, path: plain.path }),
+  }), res)
+  const { status, payload } = jsonOf(res.record)
+  assert.equal(status, 409)
+  assert.equal(payload.code, 'not-git-repo')
+})
 
 test('routes dispose cleanly', async () => {
   using routes = await setup()

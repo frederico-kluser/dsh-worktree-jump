@@ -11,15 +11,16 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { isAbsolute } from 'node:path'
 import type { WorktreeHost } from './service.ts'
-import { createWorktreeAndFork, repoFacts } from './service.ts'
+import { createWorktreeAndFork, repoFacts, startInExistingWorktree } from './service.ts'
 import { validateWorktreeName } from './worktree.ts'
 import { GitFailureError, GitTimeoutError } from './git.ts'
 import { ForkRejection } from './fork.ts'
 import type { WebServerLike } from './host-services.ts'
 import {
-  WORKTREE_CREATE_ROUTE, WORKTREE_STATUS_ROUTE,
-  type WorktreeCreateValue, type WorktreeErrorPayload,
+  WORKTREE_CREATE_ROUTE, WORKTREE_START_ROUTE, WORKTREE_STATUS_ROUTE,
+  type WorktreeCreateValue, type WorktreeErrorPayload, type WorktreeStartValue,
 } from './shared.ts'
 
 /** POST bodies are tiny JSON objects; anything larger is hostile. */
@@ -70,15 +71,34 @@ export function parseCreateBody(text: string): { sessionId: string; name: string
   return { sessionId, name }
 }
 
+/** Parse one start body: JSON object with non-empty string sessionId and path. */
+export function parseStartBody(text: string): { sessionId: string; path: string } | null {
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof body !== 'object' || body === null) return null
+  const { sessionId, path } = body as { sessionId?: unknown; path?: unknown }
+  if (typeof sessionId !== 'string' || sessionId === '' || typeof path !== 'string' || path === '') return null
+  return { sessionId, path }
+}
+
 /** Map one operation failure to its wire status and structured body. */
 export function wireErrorOf(error: unknown): { status: number; body: WorktreeErrorPayload } {
   if (error instanceof ForkRejection) {
     const status = error.code === 'session-not-found' ? 404
+      : error.code === 'worktree-exists' ? 409
+      : error.code === 'branch-exists' ? 409
       : error.code === 'subagent-session' ? 409
       : error.code === 'no-workspace' ? 409
       : error.code === 'not-git-repo' ? 409
       : 502
     return { status, body: { code: error.code, message: error.message } }
+  }
+  if (error instanceof GitFailureError || error instanceof GitTimeoutError) {
+    return { status: 502, body: { code: 'git-failed', message: error.message } }
   }
   if (error instanceof Error && error.message.startsWith('invalid worktree name')) {
     return { status: 400, body: { code: 'invalid-name', message: error.message } }
@@ -212,7 +232,61 @@ export function registerWorktreeRoutes(
     },
   })
 
+  const disposeStart = webServer.register({
+    kind: 'exact',
+    path: WORKTREE_START_ROUTE,
+    handler: async (req, res) => {
+      if (rejected(req, res)) return
+      if (req.method !== 'POST') {
+        sendMethodNotAllowed(res, 'POST')
+        return
+      }
+      const essence = String(req.headers['content-type']).split(';', 1)[0]?.trim().toLowerCase()
+      if (essence !== 'application/json') {
+        sendJson(res, 415, { code: 'bad-request', message: 'content-type must be application/json' })
+        return
+      }
+      let text: string | null
+      try {
+        text = await readBoundedBody(req)
+      } catch {
+        sendJson(res, 400, { code: 'bad-request', message: 'request body unreadable' })
+        return
+      }
+      if (text === null) {
+        sendJson(res, 413, { code: 'bad-request', message: 'request body is too large' })
+        return
+      }
+      const body = parseStartBody(text)
+      if (body === null) {
+        sendJson(res, 400, {
+          code: 'bad-request',
+          message: 'request body must be JSON with string "sessionId" and "path"',
+        })
+        return
+      }
+      if (!isAbsolute(body.path)) {
+        sendJson(res, 400, { code: 'bad-request', message: 'path must be an absolute directory' })
+        return
+      }
+      try {
+        const outcome = await startInExistingWorktree(deps.host, body.sessionId, body.path, deps.config)
+        const value: WorktreeStartValue = {
+          ok: true,
+          sessionId: outcome.childId,
+          worktreePath: outcome.plan.worktreePath,
+          branch: outcome.plan.branch,
+        }
+        sendJson(res, 200, value)
+      } catch (error) {
+        const { status, body: payload } = wireErrorOf(error)
+        sendJson(res, status, payload)
+      }
+    },
+  })
+
   return () => {
+    disposeStart()
     disposeCreate()
     disposeStatus()
   }

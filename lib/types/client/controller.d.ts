@@ -5,7 +5,7 @@
  * @module worktree-jump/client/controller
  */
 import { type SnapshotStore } from '@deepseek-ai/dsh-client-store';
-import { type WorktreeCreateValue, type WorktreeStatusPayload } from '../shared.ts';
+import { type WorktreeCreateValue, type WorktreeStartValue, type WorktreeStatusPayload } from '../shared.ts';
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 /** One failed create: the HTTP status plus the server's structured code. */
 export declare class WorktreeHttpError extends Error {
@@ -54,6 +54,15 @@ export declare class WorktreeController {
      * @returns the create value; rejects with {@link WorktreeHttpError} on failure.
      */
     create(sessionId: string, name: string): Promise<WorktreeCreateValue>;
+    /**
+     * Start the conversation inside an existing worktree directory.
+     * @param sessionId - the current Session.
+     * @param path - absolute existing worktree directory.
+     * @returns the start value; rejects with {@link WorktreeHttpError} on failure.
+     */
+    start(sessionId: string, path: string): Promise<WorktreeStartValue>;
+    /** Shared create/start answer handling: ok value or structured failure. */
+    private parseCreateResponse;
     private runStatus;
     /** Publish one resolved status into the shared cache. */
     private publish;

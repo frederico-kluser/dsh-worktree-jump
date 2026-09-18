@@ -20,7 +20,11 @@ In a new conversation (after the workspace folder is picked), a compact trigger 
 │  Worktree name  [ my-feature              ]                      │
 │  Letters, digits, dots, underscores, hyphens.                    │
 │  Repository: /home/you/proj  ·  main                             │
-│  Existing worktrees (2) ▸                                        │
+│  Existing worktrees · start inside one instead                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ existing-branch                                          │    │  ← one button per existing worktree
+│  │ hotfix-login                                             │    │
+│  └──────────────────────────────────────────────────────────┘    │
 │                        [Cancel]  [Create and start]              │
 └──────────────────────────────────────────────────────────────────┘
         │  host: git worktree add <repo>/.worktrees/<name> -b <name>
@@ -30,6 +34,8 @@ In a new conversation (after the workspace folder is picked), a compact trigger 
   (sidebar nests the child under the source; a Workspace is
    created over the worktree directory)
 ```
+
+Existing worktrees are **pickable**: each one renders as a button (its branch name); clicking starts the conversation inside that directory — no new worktree is created, the same host-side fork flow runs with `meta.cwd` pointed at the chosen directory.
 
 ## Why a fork is the transport
 

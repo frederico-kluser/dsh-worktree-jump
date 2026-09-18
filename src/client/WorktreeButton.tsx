@@ -31,6 +31,8 @@ export interface WorktreeActionInjected {
   readonly loadStatus: (sessionId: string, cwd: string) => void
   /** Create the worktree and start the conversation inside it. */
   readonly create: (sessionId: string, name: string) => Promise<{ readonly sessionId: string }>
+  /** Start the conversation inside an existing worktree directory. */
+  readonly start: (sessionId: string, path: string) => Promise<{ readonly sessionId: string }>
   /** Transport the UI to one session (uiWorkspace when present, else the list). */
   readonly openSession: (sessionId: string) => void
 }
@@ -107,17 +109,19 @@ const styles = {
     lineHeight: '18px',
     color: 'var(--dsw-alias-label-secondary)',
   } satisfies React.CSSProperties,
-  existing: {
+  picker: { display: 'grid', gap: 6 } satisfies React.CSSProperties,
+  pickTitle: {
+    margin: 0,
     fontSize: 12,
+    lineHeight: '18px',
     color: 'var(--dsw-alias-label-secondary)',
   } satisfies React.CSSProperties,
+  pickButton: { width: '100%', justifyContent: 'flex-start' } satisfies React.CSSProperties,
   existingList: {
-    margin: '4px 0 0',
-    paddingLeft: 16,
-    maxHeight: 120,
-    overflowY: 'auto',
     display: 'grid',
-    gap: 2,
+    gap: 6,
+    maxHeight: 160,
+    overflowY: 'auto',
   } satisfies React.CSSProperties,
   error: {
     margin: 0,
@@ -135,7 +139,7 @@ const styles = {
  * @returns the floating trigger (and dialog when open), or null when not applicable.
  */
 export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null {
-  const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, openSession } = props
+  const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, start, openSession } = props
   const blank = useSession(state => state.blank)
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const statusMap = useWorktreeStatus(map => map)
@@ -179,6 +183,7 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
         cwd={cwd}
         status={status}
         create={create}
+        start={start}
         openSession={openSession}
         t={t}
       />
@@ -202,13 +207,14 @@ export function WorktreeDialog(
     readonly cwd: string
     readonly status: WorktreeStatusPayload
     readonly create: (sessionId: string, name: string) => Promise<{ readonly sessionId: string }>
+    readonly start: (sessionId: string, path: string) => Promise<{ readonly sessionId: string }>
     readonly openSession: (sessionId: string) => void
     readonly t: PropsLocale<typeof NS>['t']
   },
 ): React.JSX.Element | null {
-  const { open, onClose, sessionId, cwd, status, create, openSession, t } = props
+  const { open, onClose, sessionId, cwd, status, create, start, openSession, t } = props
   const [name, setName] = useState('')
-  const [phase, setPhase] = useState<'idle' | 'creating'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'creating' | 'starting'>('idle')
   const [error, setError] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -219,11 +225,29 @@ export function WorktreeDialog(
     }
   }, [open])
 
+  const busy = phase !== 'idle'
+
   const submit = (): void => {
-    if (phase === 'creating' || name.trim() === '') return
+    if (busy || name.trim() === '') return
     setPhase('creating')
     setError(undefined)
     create(sessionId, name.trim())
+      .then((value) => {
+        setPhase('idle')
+        onClose()
+        openSession(value.sessionId)
+      })
+      .catch((cause: unknown) => {
+        setPhase('idle')
+        setError(errorTextOf(cause, t))
+      })
+  }
+
+  const beginAt = (worktreePath: string): void => {
+    if (busy) return
+    setPhase('starting')
+    setError(undefined)
+    start(sessionId, worktreePath)
       .then((value) => {
         setPhase('idle')
         onClose()
@@ -240,18 +264,18 @@ export function WorktreeDialog(
   return (
     <Modal
       open={open}
-      onClose={() => { if (phase !== 'creating') onClose() }}
+      onClose={() => { if (!busy) onClose() }}
       title={t('dialog.title')}
       description={t('dialog.description')}
       closeLabel={t('dialog.cancel')}
       footer={(
         <>
-          <Button variant="ghost" disabled={phase === 'creating'} onClick={onClose}>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>
             {t('dialog.cancel')}
           </Button>
           <Button
             variant="primary"
-            disabled={phase === 'creating' || name.trim() === ''}
+            disabled={busy || name.trim() === ''}
             onClick={submit}
           >
             {phase === 'creating' ? t('dialog.creating') : t('dialog.submit')}
@@ -267,7 +291,7 @@ export function WorktreeDialog(
         autoFocus
         placeholder={t('dialog.name.placeholder')}
         value={name}
-        disabled={phase === 'creating'}
+        disabled={busy}
         style={styles.fieldInput}
         onChange={(event) => { setName(event.target.value) }}
         onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
@@ -280,17 +304,24 @@ export function WorktreeDialog(
       </p>
       {existing.length > 0
         ? (
-            <details style={styles.existing}>
-              <summary>{`${t('dialog.existing')} (${String(existing.length)})`}</summary>
-              <ul style={styles.existingList}>
+            <div style={styles.picker}>
+              <p style={styles.pickTitle}>{`${t('dialog.existing')} · ${t('dialog.pick.existing')}`}</p>
+              <div style={styles.existingList}>
                 {existing.map(worktree => (
-                  <li key={worktree.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <span style={styles.branch}>{worktree.branch}</span>{' '}
-                    <code>{worktree.path}</code>
-                  </li>
+                  <Button
+                    key={worktree.path}
+                    variant="outline"
+                    size="sm"
+                    style={styles.pickButton}
+                    disabled={busy}
+                    aria-label={`${t('dialog.pick.existing')}: ${worktree.branch}`}
+                    onClick={() => { beginAt(worktree.path) }}
+                  >
+                    {phase === 'starting' ? t('dialog.creating') : worktree.branch}
+                  </Button>
                 ))}
-              </ul>
-            </details>
+              </div>
+            </div>
           )
         : undefined}
       {error !== undefined ? <p style={styles.error} role="alert">{error}</p> : undefined}

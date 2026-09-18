@@ -7,8 +7,8 @@
 
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
-  WORKTREE_CREATE_ROUTE, WORKTREE_STATUS_ROUTE,
-  type WorktreeCreateValue, type WorktreeStatusPayload,
+  WORKTREE_CREATE_ROUTE, WORKTREE_START_ROUTE, WORKTREE_STATUS_ROUTE,
+  type WorktreeCreateValue, type WorktreeStartValue, type WorktreeStatusPayload,
 } from '../shared.ts'
 
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>
@@ -90,15 +90,35 @@ export class WorktreeController {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId, name }),
     })
+    return this.parseCreateResponse(response)
+  }
+
+  /**
+   * Start the conversation inside an existing worktree directory.
+   * @param sessionId - the current Session.
+   * @param path - absolute existing worktree directory.
+   * @returns the start value; rejects with {@link WorktreeHttpError} on failure.
+   */
+  async start(sessionId: string, path: string): Promise<WorktreeStartValue> {
+    const response = await this.fetcher(new URL(WORKTREE_START_ROUTE, hostBase()), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId, path }),
+    })
+    return this.parseCreateResponse(response)
+  }
+
+  /** Shared create/start answer handling: ok value or structured failure. */
+  private async parseCreateResponse<Value extends { ok: true }>(response: Response): Promise<Extract<Value, { ok: true }>> {
     const payload = (await response.json().catch(() => undefined)) as
-      | WorktreeCreateValue
+      | (Value & { ok: true })
       | { code?: string; message?: string }
       | undefined
     if (!response.ok || payload === undefined || !('ok' in payload)) {
       const failure = payload as { code?: string; message?: string } | undefined
       throw new WorktreeHttpError(response.status, failure?.code, failure?.message)
     }
-    return payload
+    return payload as Extract<Value, { ok: true }>
   }
 
   private async runStatus(sessionId: string, cwd: string): Promise<void> {

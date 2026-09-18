@@ -16,6 +16,7 @@ export declare const en: {
     readonly 'dialog.name.placeholder': "my-feature";
     readonly 'dialog.name.hint': "Letters, digits, dots, underscores, hyphens. A branch with the same name is created from HEAD.";
     readonly 'dialog.existing': "Existing worktrees";
+    readonly 'dialog.pick.existing': "Start the conversation inside an existing worktree instead";
     readonly 'dialog.submit': "Create and start";
     readonly 'dialog.creating': "Creating…";
     readonly 'dialog.cancel': "Cancel";
@@ -38,6 +39,7 @@ export declare const pt: {
     readonly 'dialog.name.placeholder': "minha-feature";
     readonly 'dialog.name.hint': "Letras, números, pontos, underscores e hífens. Um branch com o mesmo nome é criado a partir do HEAD.";
     readonly 'dialog.existing': "Worktrees existentes";
+    readonly 'dialog.pick.existing': "Começar a conversa dentro de uma worktree existente";
     readonly 'dialog.submit': "Criar e começar";
     readonly 'dialog.creating': "Criando…";
     readonly 'dialog.cancel': "Cancelar";

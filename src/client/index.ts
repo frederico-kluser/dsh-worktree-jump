@@ -57,6 +57,7 @@ export function apply(ctx: ClientContext): void {
       },
       loadStatus: (sessionId, cwd) => { void controller.loadStatus(sessionId, cwd) },
       create: (sessionId, name) => controller.create(sessionId, name),
+      start: (sessionId, path) => controller.start(sessionId, path),
       openSession: (childId) => {
         // The documented navigation verb, when its owner plugin is mounted;
         // otherwise the plain session-list open.

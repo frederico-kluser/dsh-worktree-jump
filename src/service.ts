@@ -6,6 +6,7 @@
  */
 
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { runGit, gitOk, type SubprocessRuntimeLike } from './git.ts'
 import { forkSessionInto, ForkRejection, type ForkHost } from './fork.ts'
@@ -119,8 +120,23 @@ export async function createWorktreeAndFork(
   const inside = await insideWorkTree(host.subprocess, cwd, config.gitTimeoutMs)
   if (!inside.inside) throw new ForkRejection('not-git-repo', `"${cwd}" is not inside a git working tree`)
   const plan = planWorktree(inside.repoRoot, inside.gitDir, name, config.worktreeRoot)
+  // Fail loud before mutating: an existing worktree or branch is a pickable
+  // state, not an error — the dialog offers it as a start target.
+  if ((await worktreeList(host.subprocess, inside.repoRoot, config.gitTimeoutMs))
+    .some(worktree => worktree.path === plan.worktreePath)) {
+    throw new ForkRejection('worktree-exists', `a worktree already exists at "${plan.worktreePath}"`)
+  }
+  const branchProbe = await runGit(
+    host.subprocess,
+    ['git', 'rev-parse', '--verify', '--quiet', `refs/heads/${plan.branch}`],
+    inside.repoRoot,
+    config.gitTimeoutMs,
+  )
+  if (branchProbe.exitCode === 0) {
+    throw new ForkRejection('branch-exists', `a branch named "${plan.branch}" already exists`)
+  }
   await ensureExcluded(host.fs, plan)
-  await mkdir(plan.worktreeRoot, { recursive: true })
+  await host.fs.mkdir(plan.worktreeRoot, { recursive: true })
   await gitOk(
     host.subprocess,
     inside.repoRoot,
@@ -129,6 +145,54 @@ export async function createWorktreeAndFork(
   )
   const childId = await forkObservedSession(host, sessionId, plan.worktreePath)
   const workspaceAttached = await attachWorkspace(host.workspaceRegistry, plan.worktreePath, childId)
+  return { plan, childId, workspaceAttached }
+}
+
+/** Result of one successful start-from-existing. */
+export interface StartOutcome {
+  /** Plan-shaped view over the chosen worktree (no creation happened). */
+  readonly plan: WorktreePlan
+  readonly childId: SessionId
+  /** Whether the child Session was attached to a Workspace over the worktree. */
+  readonly workspaceAttached: boolean
+}
+
+/**
+ * Start the conversation inside an existing worktree of the source's
+ * repository: the child Session is forked from the source (a blank source
+ * starts fresh) with its frozen creation `cwd` pointed at the chosen
+ * worktree directory. The directory must be an existing git work tree; a
+ * workspace is found-or-created over it for sidebar grouping, and an
+ * attachment failure never fails the start.
+ * @param host - the host capability set.
+ * @param sessionId - session to transport.
+ * @param worktreePath - absolute existing worktree directory.
+ * @param config - deployment configuration.
+ * @returns the chosen worktree view, the child Session id, and grouping outcome.
+ * @throws {ForkRejection} `not-git-repo` when the directory is not a work tree.
+ * @throws {ForkRejection} `no-workspace` when the session records no cwd.
+ */
+export async function startInExistingWorktree(
+  host: WorktreeHost,
+  sessionId: string,
+  worktreePath: string,
+  config: { worktreeRoot?: string; gitTimeoutMs: number },
+): Promise<StartOutcome> {
+  await workspaceDirectory(host.sessionQuery, sessionId)
+  const chosen = await insideWorkTree(host.subprocess, worktreePath, config.gitTimeoutMs)
+  if (!chosen.inside) {
+    throw new ForkRejection('not-git-repo', `"${worktreePath}" is not a git working tree`)
+  }
+  const branch = await currentBranch(host.subprocess, worktreePath, config.gitTimeoutMs)
+  const plan: WorktreePlan = {
+    worktreeRoot: chosen.repoRoot,
+    worktreePath,
+    branch,
+    excludeEntry: undefined,
+    excludeFile: join(chosen.gitDir, 'info', 'exclude'),
+  }
+  const childId = await forkObservedSession(host, sessionId, worktreePath)
+  const workspaceAttached = await attachWorkspace(host.workspaceRegistry, worktreePath, childId)
   return { plan, childId, workspaceAttached }
 }
 

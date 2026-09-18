@@ -10,6 +10,8 @@ export declare const WORKTREE_ROUTE_PREFIX = "/dsh-worktree";
 export declare const WORKTREE_STATUS_ROUTE = "/dsh-worktree/status";
 /** Mutation: create a worktree and fork the session into it. */
 export declare const WORKTREE_CREATE_ROUTE = "/dsh-worktree/create";
+/** Mutation: start the conversation from an existing worktree directory. */
+export declare const WORKTREE_START_ROUTE = "/dsh-worktree/start";
 /** One existing git worktree of the session's repository. */
 export interface WorktreeInfo {
     /** Absolute worktree directory. */
@@ -51,6 +53,23 @@ export interface WorktreeCreateValue {
     /** Absolute worktree directory. */
     readonly worktreePath: string;
     /** Branch checked out in the worktree. */
+    readonly branch: string;
+}
+/** Payload of `POST ${WORKTREE_START_ROUTE}`: start from an existing worktree. */
+export interface WorktreeStartPayload {
+    /** Session to fork from; its repository must own the worktree. */
+    readonly sessionId: string;
+    /** Absolute existing worktree directory. */
+    readonly path: string;
+}
+/** Result of one successful start-from-existing. */
+export interface WorktreeStartValue {
+    readonly ok: true;
+    /** The forked continuation Session; its cwd is the chosen worktree. */
+    readonly sessionId: string;
+    /** Absolute worktree directory the conversation now runs in. */
+    readonly worktreePath: string;
+    /** Branch checked out in the chosen worktree. */
     readonly branch: string;
 }
 /**
