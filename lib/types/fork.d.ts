@@ -82,12 +82,15 @@ export interface ForkHost {
             model: string;
         };
     };
-    /** Optional agent-preset capability; absence means no preset mounting. */
+    /** Optional agent-preset capability; absence means no preset mounting.
+     * The real `AgentPresets.mount` resolves to the mounted preset (NOT void) —
+     * consume it with `await` and return nothing, or the agent loop reads the
+     * preset as a publication commit. */
     readonly agentPresets: {
         resolve(presetId: string | undefined): Promise<{
             id: string;
         }>;
-        mount(agentCtx: unknown, presetId: string): Promise<void>;
+        mount(agentCtx: unknown, presetId: string): Promise<unknown>;
     } | undefined;
 }
 /**

@@ -103,11 +103,14 @@ export interface ForkHost {
   }
   /** Current deployment default provider/model pair. */
   readonly agentDefaultModel: { currentSelection(): { provider: string; model: string } }
-  /** Optional agent-preset capability; absence means no preset mounting. */
+  /** Optional agent-preset capability; absence means no preset mounting.
+   * The real `AgentPresets.mount` resolves to the mounted preset (NOT void) —
+   * consume it with `await` and return nothing, or the agent loop reads the
+   * preset as a publication commit. */
   readonly agentPresets:
     | {
       resolve(presetId: string | undefined): Promise<{ id: string }>
-      mount(agentCtx: unknown, presetId: string): Promise<void>
+      mount(agentCtx: unknown, presetId: string): Promise<unknown>
     }
     | undefined
 }
@@ -149,7 +152,15 @@ export async function forkSessionInto(
   if (host.agentPresets !== undefined) {
     const resolved = await host.agentPresets.resolve(typeof presetId === 'string' ? presetId : undefined)
     agentPreset = resolved.id
-    setup = (agentCtx: unknown) => host.agentPresets!.mount(agentCtx, resolved.id)
+    // The wrapper must be an async function that AWAITS and returns nothing:
+    // `AgentPresets.mount` resolves to the mounted AgentPreset, and the agent
+    // loop reads the setup's awaited result as an optional publication commit
+    // (`setupCommit?.commit()`), so repassing the mount's promise directly
+    // hands it a preset object and crashes the creation. The first-party
+    // fork command wraps the same way.
+    setup = async (agentCtx: unknown) => {
+      await host.agentPresets!.mount(agentCtx, resolved.id)
+    }
   }
 
   const cut = computeForkCut(source.events)

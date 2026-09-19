@@ -58,8 +58,15 @@ test('forkSessionInto overrides the cwd and keeps lineage', async () => {
   assert.equal(created?.inheritedEventCount, 3)
   assert.deepEqual(created?.agentOptions, { provider: 'p', model: 'm' })
   const setup = created?.setup as ((agentCtx: unknown, agent: unknown) => Promise<void> | void) | undefined
-  await setup?.(undefined, undefined)
+  const setupResult = await setup?.(undefined, undefined)
   assert.deepEqual(mounted, ['default-preset'])
+  // The real AgentPresets.mount resolves to the mounted preset object; the
+  // agent loop reads the setup's awaited result as an optional publication
+  // commit and calls `setupCommit?.commit()` on it. A setup that repasses the
+  // mount's promise hands the loop a preset and crashes the creation
+  // ("(intermediate value)?.commit is not a function") — so the wrapper MUST
+  // resolve to undefined.
+  assert.equal(setupResult, undefined, 'setup must resolve to void, not the mount result')
 })
 
 test('forkSessionInto forks blank when the source has no completed turn', async () => {
