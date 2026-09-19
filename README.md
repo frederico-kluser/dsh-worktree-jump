@@ -53,6 +53,8 @@ Concretely, clicking *Create and start* does, in order:
 6. **Group**: find-or-create a Workspace over the worktree directory and attach the child, so the sidebar groups the continuation under its directory. Attachment failure never fails the create — the session exists and is openable either way.
 7. The browser half opens the child session (`ctx.uiWorkspace.openSession`, falling back to the session list) — same transcript, new working directory.
 
+**Degrading, not failing:** the Workspace over the worktree is created *before* the fork, so it exists regardless of what happens next. If the fork itself fails (the worktree is already on disk and its Workspace is live), the routes answer `forked: false` + `workspaceId` and the browser starts a **fresh Session inside that Workspace** — the worktree is never lost, and the dialog surfaces the server's own cause. Duplication is pre-checked the same way: an existing worktree or branch answers a structured 409 (`worktree-exists` / `branch-exists`), which the dialog presents alongside the pickable existing-worktree buttons instead of a dead end.
+
 The **original session stays behind** in the original folder; the fork is the continuation. That is the DSH model (immutable creation metadata), and it also means the move is reversible by simply switching back in the sidebar.
 
 ## Install

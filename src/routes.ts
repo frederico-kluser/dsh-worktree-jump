@@ -220,9 +220,14 @@ export function registerWorktreeRoutes(
         const outcome = await createWorktreeAndFork(deps.host, body.sessionId, name, deps.config)
         const value: WorktreeCreateValue = {
           ok: true,
-          sessionId: outcome.childId,
+          forked: outcome.forked,
+          ...(outcome.childId !== undefined ? { sessionId: outcome.childId } : {}),
+          ...(outcome.workspaceId !== undefined
+            ? { workspaceId: String(outcome.workspaceId) }
+            : {}),
           worktreePath: outcome.plan.worktreePath,
           branch: outcome.plan.branch,
+          workspaceAttached: outcome.workspaceAttached,
         }
         sendJson(res, 200, value)
       } catch (error) {
@@ -273,9 +278,14 @@ export function registerWorktreeRoutes(
         const outcome = await startInExistingWorktree(deps.host, body.sessionId, body.path, deps.config)
         const value: WorktreeStartValue = {
           ok: true,
-          sessionId: outcome.childId,
+          forked: outcome.forked,
+          ...(outcome.childId !== undefined ? { sessionId: outcome.childId } : {}),
+          ...(outcome.workspaceId !== undefined
+            ? { workspaceId: String(outcome.workspaceId) }
+            : {}),
           worktreePath: outcome.plan.worktreePath,
           branch: outcome.plan.branch,
+          workspaceAttached: outcome.workspaceAttached,
         }
         sendJson(res, 200, value)
       } catch (error) {

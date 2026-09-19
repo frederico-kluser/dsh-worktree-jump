@@ -21,6 +21,12 @@ import type { WorktreeStatusPayload } from '../shared.ts'
 import { WorktreeHttpError } from './controller.ts'
 import { NS, type WorktreeJumpKey } from './locales.ts'
 
+/** One create/start outcome the dialog acts on. */
+export interface WorktreeOutcome {
+  readonly sessionId?: string
+  readonly workspaceId?: string
+}
+
 /** Browser operations and state injected into the overlay contribution. */
 export interface WorktreeActionInjected {
   hooks: {
@@ -30,9 +36,11 @@ export interface WorktreeActionInjected {
   /** Ensure the status read for one session's cwd is running or resolved. */
   readonly loadStatus: (sessionId: string, cwd: string) => void
   /** Create the worktree and start the conversation inside it. */
-  readonly create: (sessionId: string, name: string) => Promise<{ readonly sessionId: string }>
+  readonly create: (sessionId: string, name: string) => Promise<WorktreeOutcome>
   /** Start the conversation inside an existing worktree directory. */
-  readonly start: (sessionId: string, path: string) => Promise<{ readonly sessionId: string }>
+  readonly start: (sessionId: string, path: string) => Promise<WorktreeOutcome>
+  /** Fallback: open a brand-new Session inside the workspace over the worktree. */
+  readonly startInWorkspace: (workspaceId: string) => Promise<void>
   /** Transport the UI to one session (uiWorkspace when present, else the list). */
   readonly openSession: (sessionId: string) => void
 }
@@ -43,23 +51,27 @@ export type WorktreeActionProps =
   & InjectFace<WorktreeActionInjected>
   & PropsLocale<typeof NS>
 
-/** Server-code → dictionary-key table for the dialog's error line. */
+/** Server-code → dictionary-key table for the dialog's error line. Codes
+ * whose server message carries the actionable cause (fork-unavailable,
+ * git-failed) fall through to the server's own message. */
 const ERROR_KEY: Partial<Record<string, WorktreeJumpKey>> = {
   'invalid-name': 'error.invalid-name',
   'worktree-exists': 'error.worktree-exists',
   'branch-exists': 'error.branch-exists',
   'not-git-repo': 'error.not-git-repo',
-  'fork-unavailable': 'error.fork-unavailable',
-  'session-not-found': 'error.generic',
-  'subagent-session': 'error.generic',
-  'no-workspace': 'error.generic',
-  'git-failed': 'error.generic',
-  'create-failed': 'error.generic',
 }
 
 /** Dialog-local styles, token-native and deliberately minimal (the Modal
  * primitive owns the chrome: header, description, body column, footer). */
 const styles = {
+  /** The Modal body column has no intrinsic gap; this grid restores the
+   * spacing between the field, hint, repository line, and picker. */
+  bodyGrid: {
+    display: 'grid',
+    gap: 10,
+    alignContent: 'start',
+    minWidth: 0,
+  } satisfies React.CSSProperties,
   fieldLabel: {
     fontSize: 13,
     lineHeight: '20px',
@@ -116,11 +128,38 @@ const styles = {
     lineHeight: '18px',
     color: 'var(--dsw-alias-label-secondary)',
   } satisfies React.CSSProperties,
-  pickButton: { width: '100%', justifyContent: 'flex-start' } satisfies React.CSSProperties,
+  pickButton: { width: '100%' } satisfies React.CSSProperties,
+  /** Two-line pick content: the branch name leads, the directory explains. */
+  pickContent: {
+    display: 'grid',
+    justifyItems: 'start',
+    gap: 1,
+    minWidth: 0,
+    textAlign: 'left',
+  } satisfies React.CSSProperties,
+  pickBranch: {
+    fontSize: 13,
+    lineHeight: '18px',
+    fontWeight: 500,
+    color: 'var(--dsw-alias-label-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: '100%',
+  } satisfies React.CSSProperties,
+  pickPath: {
+    fontSize: 11,
+    lineHeight: '16px',
+    color: 'var(--dsw-alias-label-secondary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: '100%',
+  } satisfies React.CSSProperties,
   existingList: {
     display: 'grid',
     gap: 6,
-    maxHeight: 160,
+    maxHeight: 180,
     overflowY: 'auto',
   } satisfies React.CSSProperties,
   error: {
@@ -139,7 +178,7 @@ const styles = {
  * @returns the floating trigger (and dialog when open), or null when not applicable.
  */
 export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null {
-  const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, start, openSession } = props
+  const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, start, startInWorkspace, openSession } = props
   const blank = useSession(state => state.blank)
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const statusMap = useWorktreeStatus(map => map)
@@ -184,6 +223,7 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
         status={status}
         create={create}
         start={start}
+        startInWorkspace={startInWorkspace}
         openSession={openSession}
         t={t}
       />
@@ -192,10 +232,12 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
 }
 
 /**
- * The naming dialog: one input, repository facts, the existing-worktree hint,
- * and the create action. On success the UI opens the forked child Session —
- * the conversation starts inside the worktree. The Modal primitive owns the
- * chrome; the body flows in its native content column.
+ * The naming dialog: one input, repository facts, the pickable existing
+ * worktrees, and the create action. On success the UI opens the forked child
+ * Session — the conversation starts inside the worktree; when the host
+ * reports a fork failure it fell back to a fresh Session inside the
+ * workspace, which the dialog starts and opens. The Modal primitive owns the
+ * chrome; the body is one token-native grid with breathing room.
  * @param props - open state, session facts, host status, and injected verbs.
  * @returns the modal, or null when closed.
  */
@@ -206,13 +248,14 @@ export function WorktreeDialog(
     readonly sessionId: string
     readonly cwd: string
     readonly status: WorktreeStatusPayload
-    readonly create: (sessionId: string, name: string) => Promise<{ readonly sessionId: string }>
-    readonly start: (sessionId: string, path: string) => Promise<{ readonly sessionId: string }>
+    readonly create: (sessionId: string, name: string) => Promise<WorktreeOutcome>
+    readonly start: (sessionId: string, path: string) => Promise<WorktreeOutcome>
+    readonly startInWorkspace: (workspaceId: string) => Promise<void>
     readonly openSession: (sessionId: string) => void
     readonly t: PropsLocale<typeof NS>['t']
   },
 ): React.JSX.Element | null {
-  const { open, onClose, sessionId, cwd, status, create, start, openSession, t } = props
+  const { open, onClose, sessionId, cwd, status, create, start, startInWorkspace, openSession, t } = props
   const [name, setName] = useState('')
   const [phase, setPhase] = useState<'idle' | 'creating' | 'starting'>('idle')
   const [error, setError] = useState<string | undefined>(undefined)
@@ -227,16 +270,29 @@ export function WorktreeDialog(
 
   const busy = phase !== 'idle'
 
+  /** Adopt one create/start outcome: fork opened, else the workspace fallback. */
+  const adopt = (value: WorktreeOutcome): void => {
+    setPhase('idle')
+    onClose()
+    if (value.sessionId !== undefined) {
+      openSession(value.sessionId)
+      return
+    }
+    if (value.workspaceId !== undefined) {
+      // The host kept the worktree and its workspace; start a fresh Session
+      // there. A failure here surfaces as the dialog's error line.
+      startInWorkspace(value.workspaceId).catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      })
+    }
+  }
+
   const submit = (): void => {
     if (busy || name.trim() === '') return
     setPhase('creating')
     setError(undefined)
     create(sessionId, name.trim())
-      .then((value) => {
-        setPhase('idle')
-        onClose()
-        openSession(value.sessionId)
-      })
+      .then(adopt)
       .catch((cause: unknown) => {
         setPhase('idle')
         setError(errorTextOf(cause, t))
@@ -248,11 +304,7 @@ export function WorktreeDialog(
     setPhase('starting')
     setError(undefined)
     start(sessionId, worktreePath)
-      .then((value) => {
-        setPhase('idle')
-        onClose()
-        openSession(value.sessionId)
-      })
+      .then(adopt)
       .catch((cause: unknown) => {
         setPhase('idle')
         setError(errorTextOf(cause, t))
@@ -283,48 +335,53 @@ export function WorktreeDialog(
         </>
       )}
     >
-      <label htmlFor="dsh-worktree-jump-name" style={styles.fieldLabel}>
-        {t('dialog.name.label')}
-      </label>
-      <input
-        id="dsh-worktree-jump-name"
-        autoFocus
-        placeholder={t('dialog.name.placeholder')}
-        value={name}
-        disabled={busy}
-        style={styles.fieldInput}
-        onChange={(event) => { setName(event.target.value) }}
-        onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
-      />
-      <p style={styles.hint}>{t('dialog.name.hint')}</p>
-      <p style={styles.repoLine}>
-        <span style={{ flex: 'none' }}>{t('dialog.cwd')}:</span>
-        <span style={styles.repoPath}><code>{cwd}</code></span>
-        {status.branch !== undefined ? <span style={styles.branch}>{status.branch}</span> : undefined}
-      </p>
-      {existing.length > 0
-        ? (
-            <div style={styles.picker}>
-              <p style={styles.pickTitle}>{`${t('dialog.existing')} · ${t('dialog.pick.existing')}`}</p>
-              <div style={styles.existingList}>
-                {existing.map(worktree => (
-                  <Button
-                    key={worktree.path}
-                    variant="outline"
-                    size="sm"
-                    style={styles.pickButton}
-                    disabled={busy}
-                    aria-label={`${t('dialog.pick.existing')}: ${worktree.branch}`}
-                    onClick={() => { beginAt(worktree.path) }}
-                  >
-                    {phase === 'starting' ? t('dialog.creating') : worktree.branch}
-                  </Button>
-                ))}
+      <div style={styles.bodyGrid}>
+        <label htmlFor="dsh-worktree-jump-name" style={styles.fieldLabel}>
+          {t('dialog.name.label')}
+        </label>
+        <input
+          id="dsh-worktree-jump-name"
+          autoFocus
+          placeholder={t('dialog.name.placeholder')}
+          value={name}
+          disabled={busy}
+          style={styles.fieldInput}
+          onChange={(event) => { setName(event.target.value) }}
+          onKeyDown={(event) => { if (event.key === 'Enter') submit() }}
+        />
+        <p style={styles.hint}>{t('dialog.name.hint')}</p>
+        <p style={styles.repoLine}>
+          <span style={{ flex: 'none' }}>{t('dialog.cwd')}:</span>
+          <span style={styles.repoPath}><code>{cwd}</code></span>
+          {status.branch !== undefined ? <span style={styles.branch}>{status.branch}</span> : undefined}
+        </p>
+        {existing.length > 0
+          ? (
+              <div style={styles.picker}>
+                <p style={styles.pickTitle}>{`${t('dialog.existing')} · ${t('dialog.pick.existing')}`}</p>
+                <div style={styles.existingList}>
+                  {existing.map(worktree => (
+                    <Button
+                      key={worktree.path}
+                      variant="outline"
+                      style={styles.pickButton}
+                      disabled={busy}
+                      title={worktree.path}
+                      aria-label={`${t('dialog.pick.existing')}: ${worktree.branch}`}
+                      onClick={() => { beginAt(worktree.path) }}
+                    >
+                      <span style={styles.pickContent}>
+                        <span style={styles.pickBranch}>{worktree.branch}</span>
+                        <span style={styles.pickPath}>{worktree.path}</span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        : undefined}
-      {error !== undefined ? <p style={styles.error} role="alert">{error}</p> : undefined}
+            )
+          : undefined}
+        {error !== undefined ? <p style={styles.error} role="alert">{error}</p> : undefined}
+      </div>
     </Modal>
   )
 }

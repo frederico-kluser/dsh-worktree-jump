@@ -14,9 +14,15 @@ import type { WorktreeInfo } from './shared.ts';
 export type FsLike = Pick<typeof import('node:fs/promises'), 'mkdir' | 'readFile' | 'writeFile'>;
 /** The optional workspace capability: find-or-create a Workspace over a directory. */
 export interface WorkspaceRegistryLike {
+    /** Find-or-create a durable Workspace over an existing directory. */
     create(path: string): Promise<{
+        readonly id: unknown;
         attachSession(sessionId: SessionId): Promise<void>;
     }>;
+    /** Look up one workspace by id. */
+    get(id: unknown): {
+        attachSession(sessionId: SessionId): Promise<void>;
+    } | undefined;
 }
 /** Full host capability set the business operations read through. */
 export interface WorktreeHost {
@@ -33,6 +39,11 @@ export interface WorktreeHost {
     /** Optional workspace capability; absence only skips sidebar grouping. */
     readonly workspaceRegistry: WorkspaceRegistryLike | undefined;
     readonly fs: FsLike;
+    /** The host logger (property access, never injectable): the fork-failure
+     * fallback logs its cause here so the real reason is diagnosable. */
+    readonly logger?: {
+        warn(...args: unknown[]): void;
+    } | undefined;
 }
 /** Everything the routes learned about the session's repository. */
 export interface RepoFacts {
@@ -61,9 +72,15 @@ export declare function repoFacts(query: SessionQueryEngineLike, subprocess: Sub
 /** Result of one successful create. */
 export interface CreateOutcome {
     readonly plan: WorktreePlan;
-    readonly childId: SessionId;
-    /** Whether the child Session was attached to a Workspace over the worktree. */
+    /** The forked continuation Session, or undefined when the fork failed and
+     * the browser should start a fresh Session inside the workspace instead. */
+    readonly childId: SessionId | undefined;
+    /** The Workspace over the worktree (existing or newly created), when known. */
+    readonly workspaceId: unknown;
+    /** Whether the child Session was attached to that Workspace. */
     readonly workspaceAttached: boolean;
+    /** Whether the fork succeeded; false means use the workspace fallback. */
+    readonly forked: boolean;
 }
 /**
  * Create the worktree and fork the conversation into it, in that order so a
@@ -86,9 +103,15 @@ export declare function createWorktreeAndFork(host: WorktreeHost, sessionId: str
 export interface StartOutcome {
     /** Plan-shaped view over the chosen worktree (no creation happened). */
     readonly plan: WorktreePlan;
-    readonly childId: SessionId;
-    /** Whether the child Session was attached to a Workspace over the worktree. */
+    /** The forked continuation Session, or undefined when the fork failed and
+     * the browser should start a fresh Session inside the workspace instead. */
+    readonly childId: SessionId | undefined;
+    /** The Workspace over the worktree (existing or newly created), when known. */
+    readonly workspaceId: unknown;
+    /** Whether the child Session was attached to that Workspace. */
     readonly workspaceAttached: boolean;
+    /** Whether the fork succeeded; false means use the workspace fallback. */
+    readonly forked: boolean;
 }
 /**
  * Start the conversation inside an existing worktree of the source's

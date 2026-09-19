@@ -22,7 +22,10 @@ export type FsLike = Pick<typeof import('node:fs/promises'), 'mkdir' | 'readFile
 
 /** The optional workspace capability: find-or-create a Workspace over a directory. */
 export interface WorkspaceRegistryLike {
-  create(path: string): Promise<{ attachSession(sessionId: SessionId): Promise<void> }>
+  /** Find-or-create a durable Workspace over an existing directory. */
+  create(path: string): Promise<{ readonly id: unknown; attachSession(sessionId: SessionId): Promise<void> }>
+  /** Look up one workspace by id. */
+  get(id: unknown): { attachSession(sessionId: SessionId): Promise<void> } | undefined
 }
 
 /** Full host capability set the business operations read through. */
@@ -35,6 +38,9 @@ export interface WorktreeHost {
   /** Optional workspace capability; absence only skips sidebar grouping. */
   readonly workspaceRegistry: WorkspaceRegistryLike | undefined
   readonly fs: FsLike
+  /** The host logger (property access, never injectable): the fork-failure
+   * fallback logs its cause here so the real reason is diagnosable. */
+  readonly logger?: { warn(...args: unknown[]): void } | undefined
 }
 
 /** Everything the routes learned about the session's repository. */
@@ -92,9 +98,15 @@ export async function repoFacts(
 /** Result of one successful create. */
 export interface CreateOutcome {
   readonly plan: WorktreePlan
-  readonly childId: SessionId
-  /** Whether the child Session was attached to a Workspace over the worktree. */
+  /** The forked continuation Session, or undefined when the fork failed and
+   * the browser should start a fresh Session inside the workspace instead. */
+  readonly childId: SessionId | undefined
+  /** The Workspace over the worktree (existing or newly created), when known. */
+  readonly workspaceId: unknown
+  /** Whether the child Session was attached to that Workspace. */
   readonly workspaceAttached: boolean
+  /** Whether the fork succeeded; false means use the workspace fallback. */
+  readonly forked: boolean
 }
 
 /**
@@ -143,20 +155,40 @@ export async function createWorktreeAndFork(
     config.gitTimeoutMs,
     ['worktree', 'add', plan.worktreePath, '-b', plan.branch],
   )
-  const childId = await forkObservedSession(host, sessionId, plan.worktreePath)
-  const workspaceAttached = await attachWorkspace(host.workspaceRegistry, plan.worktreePath, childId)
-  return { plan, childId, workspaceAttached }
+  // The Workspace over the worktree directory is the durable grouping the
+  // sidebar shows: it is created whether or not the fork succeeds, so the
+  // New Session flow can always start a chat inside it.
+  const workspaceId = await ensureWorkspace(host.workspaceRegistry, plan.worktreePath)
+  try {
+    const childId = await forkObservedSession(host, sessionId, plan.worktreePath)
+    const attached = childId !== undefined && workspaceId !== undefined
+      ? await attachChildToWorkspace(host.workspaceRegistry, workspaceId, childId)
+      : false
+    return { plan, childId, workspaceId, workspaceAttached: attached, forked: true }
+  } catch (error) {
+    // The worktree and its Workspace exist; the browser falls back to a
+    // fresh Session in that Workspace. The fork cause stays in the log.
+    host.logger?.warn?.(
+      `worktree-jump: fork into "${plan.worktreePath}" failed; the worktree and its workspace remain available: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return { plan, childId: undefined, workspaceId, workspaceAttached: false, forked: false }
+  }
 }
 
 /** Result of one successful start-from-existing. */
 export interface StartOutcome {
   /** Plan-shaped view over the chosen worktree (no creation happened). */
   readonly plan: WorktreePlan
-  readonly childId: SessionId
-  /** Whether the child Session was attached to a Workspace over the worktree. */
+  /** The forked continuation Session, or undefined when the fork failed and
+   * the browser should start a fresh Session inside the workspace instead. */
+  readonly childId: SessionId | undefined
+  /** The Workspace over the worktree (existing or newly created), when known. */
+  readonly workspaceId: unknown
+  /** Whether the child Session was attached to that Workspace. */
   readonly workspaceAttached: boolean
+  /** Whether the fork succeeded; false means use the workspace fallback. */
+  readonly forked: boolean
 }
-
 /**
  * Start the conversation inside an existing worktree of the source's
  * repository: the child Session is forked from the source (a blank source
@@ -191,29 +223,61 @@ export async function startInExistingWorktree(
     excludeEntry: undefined,
     excludeFile: join(chosen.gitDir, 'info', 'exclude'),
   }
-  const childId = await forkObservedSession(host, sessionId, worktreePath)
-  const workspaceAttached = await attachWorkspace(host.workspaceRegistry, worktreePath, childId)
-  return { plan, childId, workspaceAttached }
+  const workspaceId = await ensureWorkspace(host.workspaceRegistry, worktreePath)
+  try {
+    const childId = await forkObservedSession(host, sessionId, worktreePath)
+    const attached = childId !== undefined && workspaceId !== undefined
+      ? await attachChildToWorkspace(host.workspaceRegistry, workspaceId, childId)
+      : false
+    return { plan, childId, workspaceId, workspaceAttached: attached, forked: true }
+  } catch (error) {
+    // The chosen worktree and its Workspace exist; the browser falls back to
+    // a fresh Session in that Workspace. The fork cause stays in the log.
+    host.logger?.warn?.(
+      `worktree-jump: fork into "${worktreePath}" failed; the worktree and its workspace remain available: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return { plan, childId: undefined, workspaceId, workspaceAttached: false, forked: false }
+  }
 }
 
 /**
- * Find-or-create a Workspace over the worktree directory and attach the child
- * Session, so sidebar grouping shows the continuation under its directory.
- * Attachment failure never fails the create: the Session exists and is
- * openable; only grouping is affected.
+ * Find-or-create a Workspace over the worktree directory so the sidebar
+ * groups the conversation under its directory and the New Session flow can
+ * target it.
  * @param registry - optional workspace registry capability.
  * @param worktreePath - absolute worktree directory.
- * @param childId - the forked child Session id.
- * @returns whether the child was attached to a workspace.
+ * @returns the Workspace id, or undefined when the capability is missing or
+ *   the create failed (best effort; the worktree itself is unaffected).
  */
-async function attachWorkspace(
+async function ensureWorkspace(
   registry: WorkspaceRegistryLike | undefined,
   worktreePath: string,
+): Promise<unknown> {
+  if (registry === undefined) return undefined
+  try {
+    return (await registry.create(worktreePath)).id
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Attach the forked child Session to the Workspace over its worktree, so the
+ * sidebar groups the continuation there.
+ * @param registry - optional workspace registry capability.
+ * @param workspaceId - the Workspace identity from {@link ensureWorkspace}.
+ * @param childId - the forked child Session id.
+ * @returns whether the child was attached.
+ */
+async function attachChildToWorkspace(
+  registry: WorkspaceRegistryLike | undefined,
+  workspaceId: unknown,
   childId: SessionId,
 ): Promise<boolean> {
   if (registry === undefined) return false
   try {
-    const workspace = await registry.create(worktreePath)
+    const workspace = registry.get(workspaceId)
+    if (workspace === undefined) return false
     await workspace.attachSession(childId)
     return true
   } catch {

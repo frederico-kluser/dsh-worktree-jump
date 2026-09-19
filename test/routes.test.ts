@@ -258,6 +258,28 @@ test('create refuses a name that collides with an existing branch', async () => 
   assert.equal(payload.code, 'branch-exists')
 })
 
+test('create keeps the worktree and answers forked:false when the fork fails', async () => {
+  using routes = await setup()
+  routes.agents.failNext = new Error('preset mount exploded')
+  const res = fakeResponse()
+  await routes.create(fakeRequest({
+    method: 'POST',
+    url: WORKTREE_CREATE_ROUTE,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId: routes.sessionId, name: 'fallback-1' }),
+  }), res)
+  const { status, payload } = jsonOf(res.record)
+  assert.equal(status, 200, `expected the fallback answer, got ${String(status)}: ${res.record.body}`)
+  assert.equal(payload.ok, true)
+  assert.equal(payload.forked, false)
+  assert.equal(payload.sessionId, undefined)
+  assert.equal(payload.worktreePath, join(routes.repo, '.worktrees', 'fallback-1'))
+  assert.equal(payload.branch, 'fallback-1')
+  // The worktree itself survives: the fallback opens a fresh Session there.
+  assert.ok(existsSync(String(payload.worktreePath)), 'worktree directory exists')
+  assert.ok(existsSync(join(String(payload.worktreePath), 'src', 'main.ts')), 'worktree carries tracked files')
+})
+
 test('start moves the conversation into an existing worktree', async () => {
   using routes = await setup()
   const worktreePath = join(routes.repo, '.worktrees', 'existing')

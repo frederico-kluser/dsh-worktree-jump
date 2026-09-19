@@ -58,6 +58,37 @@ export function apply(ctx: ClientContext): void {
       loadStatus: (sessionId, cwd) => { void controller.loadStatus(sessionId, cwd) },
       create: (sessionId, name) => controller.create(sessionId, name),
       start: (sessionId, path) => controller.start(sessionId, path),
+      // The documented fallback when the fork fails: a brand-new Session
+      // inside the Workspace the host created over the worktree.
+      startInWorkspace: async (workspaceId) => {
+        const uiWorkspace = ctx.get('uiWorkspace') as
+          | { startSession(workspaceId?: string): void }
+          | undefined
+        if (uiWorkspace !== undefined) {
+          uiWorkspace.startSession(workspaceId)
+          return
+        }
+        const sessions = ctx.get('sessions') as
+          | {
+            create(opts: { workspaceId: string }): Promise<{
+              ok: boolean
+              value?: { sessionId: string }
+              error?: { message: string }
+            }>
+            open?(sessionId: string): void
+          }
+          | undefined
+        if (sessions === undefined) throw new Error('sessions controller unavailable')
+        const result = await sessions.create({ workspaceId })
+        if (!result.ok || result.value === undefined) {
+          throw new Error(result.error?.message ?? 'the new session was rejected')
+        }
+        const uiOpen = ctx.get('uiWorkspace') as
+          | { openSession(sessionId: string): void }
+          | undefined
+        if (uiOpen !== undefined) uiOpen.openSession(result.value.sessionId)
+        else sessions.open?.(result.value.sessionId)
+      },
       openSession: (childId) => {
         // The documented navigation verb, when its owner plugin is mounted;
         // otherwise the plain session-list open.

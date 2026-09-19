@@ -48,12 +48,19 @@ export interface WorktreeCreatePayload {
 /** Result of one successful create. */
 export interface WorktreeCreateValue {
     readonly ok: true;
-    /** The forked continuation Session; its cwd is the new worktree. */
-    readonly sessionId: string;
+    /** Whether the source conversation was forked into the worktree; false
+     * means the client starts a fresh Session inside `workspaceId` instead. */
+    readonly forked: boolean;
+    /** The forked continuation Session; absent when `forked` is false. */
+    readonly sessionId?: string;
+    /** The Workspace over the worktree, when the host created/resolved one. */
+    readonly workspaceId?: string;
     /** Absolute worktree directory. */
     readonly worktreePath: string;
     /** Branch checked out in the worktree. */
     readonly branch: string;
+    /** Whether the forked Session was attached to the Workspace. */
+    readonly workspaceAttached: boolean;
 }
 /** Payload of `POST ${WORKTREE_START_ROUTE}`: start from an existing worktree. */
 export interface WorktreeStartPayload {
@@ -65,12 +72,19 @@ export interface WorktreeStartPayload {
 /** Result of one successful start-from-existing. */
 export interface WorktreeStartValue {
     readonly ok: true;
-    /** The forked continuation Session; its cwd is the chosen worktree. */
-    readonly sessionId: string;
+    /** Whether the source conversation was forked into the worktree; false
+     * means the client starts a fresh Session inside `workspaceId` instead. */
+    readonly forked: boolean;
+    /** The forked continuation Session; absent when `forked` is false. */
+    readonly sessionId?: string;
+    /** The Workspace over the worktree (existing or newly created). */
+    readonly workspaceId?: string;
     /** Absolute worktree directory the conversation now runs in. */
     readonly worktreePath: string;
     /** Branch checked out in the chosen worktree. */
     readonly branch: string;
+    /** Whether the forked Session was attached to the Workspace. */
+    readonly workspaceAttached: boolean;
 }
 /**
  * Worktree/branch-name grammar the create route admits: one filesystem and

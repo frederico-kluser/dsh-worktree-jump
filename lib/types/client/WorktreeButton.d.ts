@@ -13,6 +13,11 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { WorktreeStatusPayload } from '../shared.ts';
 import { NS } from './locales.ts';
+/** One create/start outcome the dialog acts on. */
+export interface WorktreeOutcome {
+    readonly sessionId?: string;
+    readonly workspaceId?: string;
+}
 /** Browser operations and state injected into the overlay contribution. */
 export interface WorktreeActionInjected {
     hooks: {
@@ -22,13 +27,11 @@ export interface WorktreeActionInjected {
     /** Ensure the status read for one session's cwd is running or resolved. */
     readonly loadStatus: (sessionId: string, cwd: string) => void;
     /** Create the worktree and start the conversation inside it. */
-    readonly create: (sessionId: string, name: string) => Promise<{
-        readonly sessionId: string;
-    }>;
+    readonly create: (sessionId: string, name: string) => Promise<WorktreeOutcome>;
     /** Start the conversation inside an existing worktree directory. */
-    readonly start: (sessionId: string, path: string) => Promise<{
-        readonly sessionId: string;
-    }>;
+    readonly start: (sessionId: string, path: string) => Promise<WorktreeOutcome>;
+    /** Fallback: open a brand-new Session inside the workspace over the worktree. */
+    readonly startInWorkspace: (workspaceId: string) => Promise<void>;
     /** Transport the UI to one session (uiWorkspace when present, else the list). */
     readonly openSession: (sessionId: string) => void;
 }
@@ -43,10 +46,12 @@ export type WorktreeActionProps = PropsRuntime<'conversation.input.overlay'> & I
  */
 export declare function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null;
 /**
- * The naming dialog: one input, repository facts, the existing-worktree hint,
- * and the create action. On success the UI opens the forked child Session —
- * the conversation starts inside the worktree. The Modal primitive owns the
- * chrome; the body flows in its native content column.
+ * The naming dialog: one input, repository facts, the pickable existing
+ * worktrees, and the create action. On success the UI opens the forked child
+ * Session — the conversation starts inside the worktree; when the host
+ * reports a fork failure it fell back to a fresh Session inside the
+ * workspace, which the dialog starts and opens. The Modal primitive owns the
+ * chrome; the body is one token-native grid with breathing room.
  * @param props - open state, session facts, host status, and injected verbs.
  * @returns the modal, or null when closed.
  */
@@ -56,12 +61,9 @@ export declare function WorktreeDialog(props: {
     readonly sessionId: string;
     readonly cwd: string;
     readonly status: WorktreeStatusPayload;
-    readonly create: (sessionId: string, name: string) => Promise<{
-        readonly sessionId: string;
-    }>;
-    readonly start: (sessionId: string, path: string) => Promise<{
-        readonly sessionId: string;
-    }>;
+    readonly create: (sessionId: string, name: string) => Promise<WorktreeOutcome>;
+    readonly start: (sessionId: string, path: string) => Promise<WorktreeOutcome>;
+    readonly startInWorkspace: (workspaceId: string) => Promise<void>;
     readonly openSession: (sessionId: string) => void;
     readonly t: PropsLocale<typeof NS>['t'];
 }): React.JSX.Element | null;
