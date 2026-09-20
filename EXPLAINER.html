@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dsh-worktree-jump — refinamento do gatilho</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: #f6f7f9; color: #1a1d23; line-height: 1.5; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 60px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: #5b6472; margin: 0 0 28px; }
+  h2 { font-size: 18px; margin: 32px 0 10px; border-bottom: 1px solid #dfe3e8; padding-bottom: 6px; }
+  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+  code { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+         background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
+  ul { margin: 8px 0; padding-left: 20px; }
+  li { margin: 6px 0; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px;
+         border-radius: 999px; background: #e7f1ff; color: #1f5fb0; margin-right: 6px; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .fig { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 18px; margin: 12px 0; }
+  .fig h3 { font-size: 13px; color: #5b6472; margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cdd3da; border-radius: 8px; padding: 7px 12px; font-size: 13px; background: #fff; white-space: nowrap; }
+  .ghost { border: 1px dashed #b6bdc7; background: #fafbfc; color: #6b7380; }
+  .sel { border-radius: 8px; padding: 7px 12px; font-size: 13px; background: #eef1f5; color: #4a5561; white-space: nowrap; }
+  .trigger { border-radius: 8px; padding: 7px 12px; font-size: 13px; background: #e7f1ff; border: 1px solid #b9d3f5; white-space: nowrap; }
+  .arrow { color: #5b6472; font-weight: 700; }
+  .label { font-size: 11px; color: #8a92a0; margin-top: 10px; }
+  .float { border: 1px dashed #b6bdc7; border-radius: 8px; padding: 7px 12px; font-size: 13px;
+           background: #fafbfc; color: #6b7380; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>dsh-worktree-jump — refinamento do gatilho de worktree</h1>
+  <p class="sub">Plugin DSH (cliente): gatilho inline na fileira do hero + i18n em chinês.</p>
+
+  <div class="fig">
+    <h3>Fileira do hero — antes / depois</h3>
+    <div class="label">ANTES — overlay flutuante (<code>position:fixed</code>), fora da fileira:</div>
+    <div class="row">
+      <span class="chip">📁 Choose workspace</span>
+      <span class="sel">seletor de modelo</span>
+      <span class="float">🌿 gatilho (flutuante)</span>
+    </div>
+    <div class="label" style="margin-top:16px">DEPOIS — item inline real, à esquerda do chip, empurrando o restante:</div>
+    <div class="row">
+      <span class="trigger">🌿 gatilho</span>
+      <span class="chip">📁 Choose workspace</span>
+      <span class="sel">seletor de modelo</span>
+    </div>
+  </div>
+
+  <h2>O que mudou</h2>
+  <div class="card">
+    <p><span class="tag">1</span><strong>Posicionamento inline</strong> — o gatilho deixou de ser um overlay flutuante e virou um item inline REAL na fileira flex do hero, à esquerda do chip <code>Choose workspace</code>, empurrando o chip e o seletor de modelo para a direita.</p>
+    <ul>
+      <li><code>src/client/WorktreeButton.tsx</code>: <code>createPortal</code> (react-dom) para dentro da fileira flex do hero + <code>order:-1</code>; removida toda a medição de posição fixa.</li>
+      <li>Âncora do chip por seletor estrutural <code>[data-conversation-scroll] button[aria-haspopup="menu"]:not([title])</code> (locale-agnóstico) + <code>MutationObserver</code> para a corrida settling→hero.</li>
+    </ul>
+    <p><span class="tag">2</span><strong>i18n zh</strong> — funcionamento em TODOS os idiomas do DSH (en + zh), no botão e no modal.</p>
+    <ul>
+      <li><code>src/client/locales.ts</code>: dicionário <code>zh</code> (chinês simplificado, 20 chaves = en).</li>
+      <li><code>src/client/index.ts</code>: registro <code>ctx.locale.register(NS, 'zh', zh)</code> sem <code>addLanguage</code> (zh é built-in).</li>
+      <li><code>scripts/setup-dev-env.mjs</code>: symlinks de <code>react-dom</code>/<code>@types/react-dom</code> (types p/ <code>createPortal</code>).</li>
+      <li>Artefatos <code>lib/client.cjs</code> e <code>lib/types/client/*</code> regenerados.</li>
+    </ul>
+  </div>
+
+  <h2>Commits</h2>
+  <div class="card">
+    <ul>
+      <li><code>5757ea4</code> — (turno anterior, commitado na FASE 0): chip à esquerda do seletor (versão fixed).</li>
+      <li><code>a972548</code> — (squash da onda): gatilho inline + i18n zh + âncora locale-agnóstica.</li>
+    </ul>
+  </div>
+
+  <h2>Validação</h2>
+  <div class="card">
+    <ul>
+      <li>Build <code>pnpm run build</code> <span class="ok">OK</span></li>
+      <li>Testes <code>pnpm test</code> <span class="ok">41/41 OK</span></li>
+      <li>Sem lint.</li>
+    </ul>
+  </div>
+
+  <h2>Decisões</h2>
+  <div class="card">
+    <ul>
+      <li>O turno anterior deixou o chip-fix não commitado; commitado antes da onda para a worktree-filha herdar o estado.</li>
+      <li>Escala F3-09: 1 sub-tarefa coesa, sem fan-out.</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
