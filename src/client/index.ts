@@ -1,11 +1,11 @@
 /**
- * Browser half of dsh-worktree-jump: one compact trigger floated at the
- * composer card's top-right corner — beside the workspace/mode selector row —
- * through the `conversation.input.overlay` slot, creating a git worktree and
- * starting the conversation inside it. The trigger renders only while the
- * current Session is blank and its workspace directory is a git repository
- * (status arrives per cwd from the host route); a started conversation never
- * shows it again.
+ * Browser half of dsh-worktree-jump: one chip, styled like the "Choose
+ * workspace" selector, placed immediately to its LEFT in the New-Conversation
+ * hero row through the `conversation.input.overlay` slot — creating a git
+ * worktree and starting the conversation inside it. The trigger renders only
+ * while the current Session is blank and its workspace directory is a git
+ * repository (status arrives per cwd from the host route); a started
+ * conversation never shows it again.
  * @module worktree-jump/client
  */
 

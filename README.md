@@ -2,31 +2,30 @@
 
 A DeepSeek Harness (DSH) plugin: **one trigger in the New-Conversation screen that creates a git worktree from the picked folder and starts the conversation inside it.**
 
-In a new conversation (after the workspace folder is picked), a compact trigger floats at the composer card's top-right corner — right beside the folder/mode selector row: **🌿 New worktree · <repo>**. Click it, type a name (e.g. `my-feature`), confirm — and the conversation starts inside `<repo>/.worktrees/<my-feature>`, with the model working there. The trigger appears only while the conversation is still blank (no message sent yet) and the picked folder is inside a git repository; once the conversation starts, it never shows again.
+In a new conversation (after the workspace folder is picked), a compact chip appears immediately to the **left** of the **Choose workspace** selector — same row, same style: **🌿 New worktree · <repo>**. Click it, type a name (e.g. `my-feature`), confirm — and the conversation starts inside `<repo>/.worktrees/<my-feature>`, with the model working there. The trigger appears only while the conversation is still blank (no message sent yet) and the picked folder is inside a git repository; once the conversation starts, it never shows again.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  hero headline (fish …)                                          │
-│                                                                  │
-│ ┌─ composer card ──────────────────────────────────────────────┐ │
-│ │ [📁 folder selector]  [mode selector]  [🌿 New worktree ·    │ │
-│ │                                        my-repo]              │ │ ← the trigger (this plugin)
-│ │  Type a message…                                             │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  hero headline (fish …)                                       │
+│  [🌿 New worktree ·   [📁 folder selector]  [mode selector]   │ ← the trigger (this plugin), left of the workspace chip
+│   my-repo]                                                    │
+│  ┌─ composer card ──────────────────────────────────────────┐ │
+│  │  Type a message…                                          │ │
+│  └──────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
         │ click the trigger
         ▼
-┌─ Create a worktree ──────────────────────────────────────────────┐
-│  Worktree name  [ my-feature              ]                      │
-│  Letters, digits, dots, underscores, hyphens.                    │
-│  Repository: /home/you/proj  ·  main                             │
-│  Existing worktrees · start inside one instead                   │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │ existing-branch                                          │    │  ← one button per existing worktree
-│  │ hotfix-login                                             │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                        [Cancel]  [Create and start]              │
-└──────────────────────────────────────────────────────────────────┘
+┌─ Create a worktree ──────────────────────────────────────────┐
+│  Worktree name  [ my-feature              ]                  │
+│  Letters, digits, dots, underscores, hyphens.                │
+│  Repository: /home/you/proj  ·  main                         │
+│  Existing worktrees · start inside one instead               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │ existing-branch                                      │    │  ← one button per existing worktree
+│  │ hotfix-login                                         │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                        [Cancel]  [Create and start]          │
+└──────────────────────────────────────────────────────────────┘
         │  host: git worktree add <repo>/.worktrees/<name> -b <name>
         │        + fork the blank Session with meta.cwd = worktree
         ▼

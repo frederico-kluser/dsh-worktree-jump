@@ -1,12 +1,15 @@
 /**
- * The New-Conversation worktree trigger and its dialog. The trigger is a
- * compact outline button floated at the composer card's top-right corner —
- * beside the workspace/mode selector row — through the
- * `conversation.input.overlay` slot (the same anchored strip the shipped
- * command popup uses). It renders only while the current Session is blank
- * (the New-Conversation state) and the picked workspace directory is a git
- * repository; a started conversation never shows it again. Styling rides
- * DSH primitives and tokens only — no stylesheet pipeline.
+ * The New-Conversation worktree trigger and its dialog. The trigger renders
+ * as a chip in the same style as the "Choose workspace" selector and sits
+ * immediately to its LEFT, in the same row, through the
+ * `conversation.input.overlay` slot (the session-scoped overlay strip the
+ * shipped command popup also uses). The hero affords a plugin no hook before
+ * the workspace chip, so the chip is anchored to the live chip element: the
+ * trigger's right edge is fixed at the chip's left edge (8px gap) and it
+ * re-measures on mount, resize, and scroll. It renders only while the current
+ * Session is blank (the New-Conversation state) and the picked workspace
+ * directory is a git repository; a started conversation never shows it again.
+ * Styling rides DSH tokens only — no stylesheet pipeline.
  * @module worktree-jump/client/WorktreeButton
  */
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store';
@@ -38,11 +41,11 @@ export interface WorktreeActionInjected {
 /** Full props of the overlay trigger. */
 export type WorktreeActionProps = PropsRuntime<'conversation.input.overlay'> & InjectFace<WorktreeActionInjected> & PropsLocale<typeof NS>;
 /**
- * The overlay trigger. Hidden until the current Session is a blank one (the
+ * The trigger. Hidden until the current Session is a blank one (the
  * New-Conversation state) whose picked workspace directory the host reported
  * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the floating trigger (and dialog when open), or null when not applicable.
+ * @returns the flanking chip (and dialog when open), or null when not applicable.
  */
 export declare function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null;
 /**

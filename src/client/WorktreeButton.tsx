@@ -1,17 +1,20 @@
 /**
- * The New-Conversation worktree trigger and its dialog. The trigger is a
- * compact outline button floated at the composer card's top-right corner —
- * beside the workspace/mode selector row — through the
- * `conversation.input.overlay` slot (the same anchored strip the shipped
- * command popup uses). It renders only while the current Session is blank
- * (the New-Conversation state) and the picked workspace directory is a git
- * repository; a started conversation never shows it again. Styling rides
- * DSH primitives and tokens only — no stylesheet pipeline.
+ * The New-Conversation worktree trigger and its dialog. The trigger renders
+ * as a chip in the same style as the "Choose workspace" selector and sits
+ * immediately to its LEFT, in the same row, through the
+ * `conversation.input.overlay` slot (the session-scoped overlay strip the
+ * shipped command popup also uses). The hero affords a plugin no hook before
+ * the workspace chip, so the chip is anchored to the live chip element: the
+ * trigger's right edge is fixed at the chip's left edge (8px gap) and it
+ * re-measures on mount, resize, and scroll. It renders only while the current
+ * Session is blank (the New-Conversation state) and the picked workspace
+ * directory is a git repository; a started conversation never shows it again.
+ * Styling rides DSH tokens only — no stylesheet pipeline.
  * @module worktree-jump/client/WorktreeButton
  */
 
 import { useEffect, useState } from 'react'
-import { Button, IconBranchOutline16, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconBranchOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the conversation SlotMap and ui-session standard-prop merges.
@@ -61,9 +64,65 @@ const ERROR_KEY: Partial<Record<string, WorktreeJumpKey>> = {
   'not-git-repo': 'error.not-git-repo',
 }
 
-/** Dialog-local styles, token-native and deliberately minimal (the Modal
- * primitive owns the chrome: header, description, body column, footer). */
+/**
+ * The "Choose workspace" chip this trigger flanks. The chip keeps this
+ * aria-label in every state (placeholder and named), so the query is stable
+ * across workspace picks. Never prefixes this plugin's own button, whose
+ * aria-label is its own localized string.
+ */
+const WORKSPACE_CHIP_SELECTOR = '[aria-label="Choose workspace"]'
+
+/** Gap (px) between the worktree chip and the workspace chip it flanks. */
+const CHIP_GAP = 8
+
+/** One viewport-anchored measurement of the workspace chip element. */
+interface ChipAnchor {
+  /** Chip top edge in CSS viewport px. */
+  readonly top: number
+  /** Chip left edge in CSS viewport px. */
+  readonly left: number
+}
+
+/** Measure the workspace chip's current viewport box, when it exists. */
+function measureChipAnchor(): ChipAnchor | undefined {
+  const chip = document.querySelector(WORKSPACE_CHIP_SELECTOR)
+  if (chip === null) return undefined
+  const rect = chip.getBoundingClientRect()
+  return rect.width > 0 ? { top: rect.top, left: rect.left } : undefined
+}
+
+/** Trigger styles, mirroring the host's workspace chip (HeroShell.module.css
+ * `.workspace`): pill, transparent, primary label, 13/20/500. */
 const styles = {
+  trigger: {
+    position: 'fixed',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    boxSizing: 'border-box',
+    maxWidth: 360,
+    minHeight: 28,
+    padding: '0 8px',
+    border: 'none',
+    borderRadius: 16,
+    background: 'transparent',
+    color: 'var(--dsw-alias-label-primary)',
+    fontSize: 13,
+    lineHeight: '20px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  } satisfies React.CSSProperties,
+  /** Hover feedback: the same token the workspace chip uses. */
+  triggerHover: {
+    background: 'var(--dsw-alias-interactive-bg-hover)',
+  } satisfies React.CSSProperties,
+  /** One-line label with ellipsis, like the chip's. */
+  label: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  } satisfies React.CSSProperties,
   /** The Modal body column has no intrinsic gap; this grid restores the
    * spacing between the field, hint, repository line, and picker. */
   bodyGrid: {
@@ -171,11 +230,11 @@ const styles = {
 } as const
 
 /**
- * The overlay trigger. Hidden until the current Session is a blank one (the
+ * The trigger. Hidden until the current Session is a blank one (the
  * New-Conversation state) whose picked workspace directory the host reported
  * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the floating trigger (and dialog when open), or null when not applicable.
+ * @returns the flanking chip (and dialog when open), or null when not applicable.
  */
 export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null {
   const { sessionId, useSession, useSessions, useWorktreeStatus, t, loadStatus, create, start, startInWorkspace, openSession } = props
@@ -183,38 +242,69 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const statusMap = useWorktreeStatus(map => map)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [anchor, setAnchor] = useState<ChipAnchor | undefined>(undefined)
 
   useEffect(() => {
     if (cwd === undefined || cwd === '') return
     loadStatus(sessionId, cwd)
   }, [sessionId, cwd, loadStatus])
 
+  // Anchor the chip to the workspace chip's live box: measure on mount, one
+  // frame later (so a settling hero is caught), and on any resize or scroll —
+  // the chip is plain DOM in the scrollable conversation column, and the
+  // trigger itself is a fixed overlay that must follow it.
+  useEffect(() => {
+    const measure = (): void => { setAnchor(measureChipAnchor()) }
+    measure()
+    const frame = requestAnimationFrame(measure)
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+    }
+  }, [])
+
   const status = cwd === undefined ? undefined : statusMap.get(cwd)
   if (!blank || cwd === undefined || cwd === '' || status === undefined || !status.isGitRepo) return null
+  // No chip element on screen (menu layout without the hero row): nothing to flank.
+  if (anchor === undefined) return null
 
   const repoName = cwd.split('/').filter(part => part !== '').at(-1) ?? cwd
+
+  // The trigger's RIGHT edge is fixed at the chip's left edge minus the gap,
+  // so the browser lays it out leftward at natural width (capped and
+  // ellipsized), vertically aligned to the chip's own top edge — the same
+  // row, immediately beside the "Choose workspace" selector.
+  const anchorStyle: React.CSSProperties = {
+    ...styles.trigger,
+    ...(hovered ? styles.triggerHover : undefined),
+    top: anchor.top,
+    right: window.innerWidth - anchor.left + CHIP_GAP,
+  }
 
   return (
     <>
       {/* The composer card is a click target while it fronts the workspace
-          picker, so this floating trigger swallows its own pointer events. */}
-      <div
+          picker, so this floating chip swallows its own pointer events. */}
+      <button
+        type="button"
         onPointerDown={(event) => { event.stopPropagation() }}
-        onClick={(event) => { event.stopPropagation() }}
-        style={{ position: 'absolute', top: 10, right: 16, zIndex: 100 }}
+        onClick={(event) => {
+          event.stopPropagation()
+          setDialogOpen(true)
+        }}
+        onMouseEnter={() => { setHovered(true) }}
+        onMouseLeave={() => { setHovered(false) }}
+        aria-label={t('button.aria')}
+        title={t('button.tooltip', { repo: repoName })}
+        style={anchorStyle}
       >
-        <Tooltip label={t('button.tooltip', { repo: repoName })} side="bottom">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<IconBranchOutline16 size={14} />}
-            aria-label={t('button.aria')}
-            onClick={() => { setDialogOpen(true) }}
-          >
-            {`${t('button.label')} · ${repoName}`}
-          </Button>
-        </Tooltip>
-      </div>
+        <IconBranchOutline16 size={16} />
+        <span style={styles.label}>{`${t('button.label')} · ${repoName}`}</span>
+      </button>
       <WorktreeDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false) }}
