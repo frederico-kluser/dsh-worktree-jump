@@ -36,6 +36,10 @@ In a new conversation (after the workspace folder is picked), a compact chip app
 
 Existing worktrees are **pickable**: each one renders as a button (its branch name); clicking starts the conversation inside that directory — no new worktree is created, the same host-side fork flow runs with `meta.cwd` pointed at the chosen directory.
 
+## Localization
+
+The trigger and its dialog are localized into three languages — **English** (`en`, the fallback), **Simplified Chinese** (`zh`), and **Portuguese** (`pt`, added as a selectable language). Any other DSH locale falls back to English. The button and the modal share one dictionary, so they switch together.
+
 ## Why a fork is the transport
 
 A DSH Session header's `cwd` is **frozen creation metadata** — the harness has no in-place directory switch (the system prompt's `{{cwd}}`, the shell tool's default workdir, and the sandbox root all derive from `session.header.cwd`). The documented way to carry a conversation into a new directory is a fork: the harness's own `session.fork` RPC inherits the source `cwd` verbatim, so this plugin runs the *same* host-side fork flow (`sessionQuery` observation → `agents.create` with a balanced completed-turn seed, `parentSession` lineage, the source's mounted agent preset, the current default model) with the one difference the product needs: **`meta.cwd` is the worktree path**.
@@ -119,7 +123,7 @@ Build and tests expect a DeepSeek Harness checkout nearby (for the TypeScript to
 ```sh
 DSH_CHECKOUT=/path/to/deepseek-harness npm run setup   # or pnpm run setup
 npm run build      # tsc typecheck + tsdown (node half ESM + browser CJS factory bundle)
-npm test           # 35 node:test cases
+npm test           # 41 node:test cases
 ```
 
 Tests are **fully isolated by construction**: real git only inside `os.tmpdir()` fixtures, no ports, no sockets, no `DSH_HOME` access, no network. Doubles follow behavioral contracts (the subprocess double spawns real processes through the spawn-spec shape, so a runtime change breaks tests loudly); the patch-semantics tests run the vendored harness code (`applyEntryPatches`) itself. The suite asserts the security behaviors adversarially: fence ordering (rejection before any logic), method guards, media-type and body-size refusals, unknown sessions, non-repositories, name forgery, and that the fork always lands on the worktree path — never the original folder.
