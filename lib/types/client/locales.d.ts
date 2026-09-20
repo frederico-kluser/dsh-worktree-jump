@@ -51,5 +51,28 @@ export declare const pt: {
     readonly 'error.fork-unavailable': "Não foi possível começar a conversa na worktree.";
     readonly 'error.generic': "Não foi possível criar a worktree.";
 };
+/** Simplified Chinese dictionary, key-identical to the English source. */
+export declare const zh: {
+    readonly 'button.label': "新建工作树";
+    readonly 'button.tooltip': "从 {repo} 创建新的 git 工作树，并在其中开始对话";
+    readonly 'button.aria': "创建新的 git 工作树，并在其中开始此对话";
+    readonly 'dialog.title': "创建工作树";
+    readonly 'dialog.description': "创建 git 工作树以及以其命名的分支，然后在其中开始此对话。";
+    readonly 'dialog.name.label': "工作树名称";
+    readonly 'dialog.name.placeholder': "my-feature";
+    readonly 'dialog.name.hint': "字母、数字、点、下划线和连字符。会从 HEAD 创建同名分支。";
+    readonly 'dialog.existing': "已有工作树";
+    readonly 'dialog.pick.existing': "改为在已有工作树中开始对话";
+    readonly 'dialog.submit': "创建并开始";
+    readonly 'dialog.creating': "创建中…";
+    readonly 'dialog.cancel': "取消";
+    readonly 'dialog.cwd': "仓库";
+    readonly 'error.invalid-name': "名称无效：使用 1–64 个字母、数字、点、下划线或连字符（不含斜杠或空格）。";
+    readonly 'error.worktree-exists': "已存在同名工作树。";
+    readonly 'error.branch-exists': "已存在同名分支。";
+    readonly 'error.not-git-repo': "所选文件夹不在 git 仓库内。";
+    readonly 'error.fork-unavailable': "无法在工作树中开始对话。";
+    readonly 'error.generic': "无法创建工作树。";
+};
 /** Key domain of the `worktree-jump` namespace (English is the source of truth). */
 export type WorktreeJumpKey = keyof typeof en;

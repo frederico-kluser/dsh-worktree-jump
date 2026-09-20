@@ -95,11 +95,16 @@ function main() {
     link(join(nodeModules, linkPath), join(DSH_ROOT, relativeTarget))
   }
 
-  // React runtime + types from the checkout's pnpm store.
+  // React + React DOM runtime and types from the checkout's pnpm store.
+  // `react-dom` types are needed for the client trigger's `createPortal`.
   const react = storeDir('react@')
   const reactTypes = storeDir('@types+react@')
+  const reactDom = storeDir('react-dom@')
+  const reactDomTypes = storeDir('@types+react-dom@')
   if (react !== undefined) link(join(nodeModules, 'react'), join(DSH_ROOT, `node_modules/.pnpm/${react}/node_modules/react`))
   if (reactTypes !== undefined) link(join(nodeModules, '@types/react'), join(DSH_ROOT, `node_modules/.pnpm/${reactTypes}/node_modules/@types/react`))
+  if (reactDom !== undefined) link(join(nodeModules, 'react-dom'), join(DSH_ROOT, `node_modules/.pnpm/${reactDom}/node_modules/react-dom`))
+  if (reactDomTypes !== undefined) link(join(nodeModules, '@types/react-dom'), join(DSH_ROOT, `node_modules/.pnpm/${reactDomTypes}/node_modules/@types/react-dom`))
 
   console.log(
     `setup-dev-env: ${String(created)} links created, ${String(present)} already present, ${String(skipped)} skipped`,

@@ -1,12 +1,11 @@
 /**
  * The New-Conversation worktree trigger and its dialog. The trigger renders
  * as a chip in the same style as the "Choose workspace" selector and sits
- * immediately to its LEFT, in the same row, through the
- * `conversation.input.overlay` slot (the session-scoped overlay strip the
- * shipped command popup also uses). The hero affords a plugin no hook before
- * the workspace chip, so the chip is anchored to the live chip element: the
- * trigger's right edge is fixed at the chip's left edge (8px gap) and it
- * re-measures on mount, resize, and scroll. It renders only while the current
+ * immediately to its LEFT, in the same hero row. The hero affords a plugin no
+ * slot before the workspace chip, so the chip is ported straight into the
+ * hero flex row (the workspace chip's parent) via `createPortal` and pulled
+ * to the front with `order: -1` — a real flex item that pushes the workspace
+ * chip and the model selector to the right. It renders only while the current
  * Session is blank (the New-Conversation state) and the picked workspace
  * directory is a git repository; a started conversation never shows it again.
  * Styling rides DSH tokens only — no stylesheet pipeline.
@@ -45,7 +44,7 @@ export type WorktreeActionProps = PropsRuntime<'conversation.input.overlay'> & I
  * New-Conversation state) whose picked workspace directory the host reported
  * as a git repository; a started conversation never shows it again.
  * @param props - session runtime, injected controller face, and localized copy.
- * @returns the flanking chip (and dialog when open), or null when not applicable.
+ * @returns the inline chip (and dialog when open), or null when not applicable.
  */
 export declare function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | null;
 /**
