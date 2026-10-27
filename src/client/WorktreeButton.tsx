@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, IconBranchOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconBranchOutlineRegular, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the conversation SlotMap and ui-session standard-prop merges.
@@ -277,7 +277,7 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
   // No hero row on screen (menu layout without it): nothing to precede.
   if (heroRow === undefined) return null
 
-  const repoName = cwd.split('/').filter(part => part !== '').at(-1) ?? cwd
+  const repoName = cwd.split(/[\\/]/).filter(part => part !== '').at(-1) ?? cwd
 
   // `order: -1` pulls the ported button to the front of the hero flex row,
   // left of the "Choose workspace" chip and the model selector.
@@ -302,7 +302,7 @@ export function WorktreeAction(props: WorktreeActionProps): React.JSX.Element | 
           title={t('button.tooltip', { repo: repoName })}
           style={triggerStyle}
         >
-          <IconBranchOutline16 size={16} />
+          <IconBranchOutlineRegular size={16} />
           <span style={styles.label}>{`${t('button.label')} · ${repoName}`}</span>
         </button>,
         heroRow,

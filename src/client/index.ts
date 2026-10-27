@@ -35,20 +35,17 @@ export type { WorktreeJumpKey } from './locales.ts'
 export const inject = ['sessions', 'slots', 'locale']
 
 /**
- * Client plugin body: register the languages, the dictionaries, and the
+ * Client plugin body: register the dictionaries, and the
  * inline trigger.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
   const controller = new WorktreeController()
-  // Portuguese is the primary reader's language here; English stays the
-  // fallback the locale system requires.
-  ctx.effect(() => ctx.locale.addLanguage({ id: 'pt', label: 'Português', fallback: 'en' }),
-    'worktree-jump: language')
+  // Portuguese and Simplified Chinese are built-in host locales, so no
+  // addLanguage — that throws "already registered" and fails activation;
+  // only the dictionaries are contributed.
   ctx.effect(() => ctx.locale.register(NS, 'en', en), 'worktree-jump: dictionary (en)')
   ctx.effect(() => ctx.locale.register(NS, 'pt', pt), 'worktree-jump: dictionary (pt)')
-  // Simplified Chinese is a built-in locale, so no addLanguage — that would
-  // throw "already registered"; only the dictionary is contributed.
   ctx.effect(() => ctx.locale.register(NS, 'zh', zh), 'worktree-jump: dictionary (zh)')
   ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register({
     name: 'conversation.input.overlay',
